@@ -1,0 +1,11 @@
+<Project>
+  <PropertyGroup>
+    <LangVersion>12.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Deterministic>true</Deterministic>
+    <Platforms>AnyCPU;x64</Platforms>
+    <WindowsAppSDKVersion>1.8.260921001</WindowsAppSDKVersion>
+    <WindowsSdkBuildToolsVersion>10.0.26100.6584</WindowsSdkBuildToolsVersion>
+  </PropertyGroup>
+</Project>

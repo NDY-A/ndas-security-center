@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Package Name="NDAS 安全中心"
+           Manufacturer="NDY-A"
+           Version="$(var.Version)"
+           UpgradeCode="078CD40F-C161-4EB1-BF1B-2E386C139BDC"
+           Scope="perMachine"
+           Language="2052"
+           Codepage="936"
+           Compressed="yes">
+
+    <MajorUpgrade AllowDowngrades="yes" />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="AppIcon" SourceFile="$(var.PublishDir)\Assets\Aegis.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+    <WixVariable Id="WixUILicenseRtf" Value="$(var.LicenseRtf)" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="NDAS">
+        <Directory Id="SERVICEFOLDER" Name="Service" />
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ApplicationProgramsFolder" Name="NDAS" />
+    </StandardDirectory>
+
+    <StandardDirectory Id="DesktopFolder" />
+
+    <Feature Id="MainFeature" Title="NDAS 安全中心" Level="1">
+      <ComponentGroupRef Id="AppFiles" />
+      <ComponentGroupRef Id="ServiceFiles" />
+      <ComponentGroupRef Id="Shortcuts" />
+    </Feature>
+  </Package>
+
+  <Fragment>
+    <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
+      <Files Include="$(var.PublishDir)\**" />
+    </ComponentGroup>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="ServiceFiles" Directory="SERVICEFOLDER">
+      <Files Include="$(var.ServicePublishDir)\*.dll" />
+      <Files Include="$(var.ServicePublishDir)\*.json" />
+      <Files Include="$(var.ServicePublishDir)\createdump.exe" />
+      <Component Id="NdasServiceComponent" Guid="*">
+        <File Id="NdasServiceExe" Source="$(var.ServicePublishDir)\NDASService.exe" KeyPath="yes" />
+        <ServiceInstall Id="NdasServiceInstall"
+                        Name="NDASService"
+                        DisplayName="NDAS 防护服务"
+                        Description="NDAS LocalSystem 防护服务：HIPS、实时文件扫描与桌面/下载监控"
+                        Start="auto"
+                        Type="ownProcess"
+                        ErrorControl="normal"
+                        Account="LocalSystem"
+                        Vital="yes" />
+        <ServiceControl Id="NdasServiceControl" Name="NDASService" Start="install" Stop="both" Remove="uninstall" Wait="yes" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="Shortcuts">
+      <Component Id="StartMenuShortcut" Directory="ApplicationProgramsFolder" Guid="*">
+        <Shortcut Id="StartMenuShortcut" Name="NDAS 安全中心" Description="NDAS 本地安全中心"
+                  Target="[INSTALLFOLDER]NDAS.exe" WorkingDirectory="INSTALLFOLDER" Icon="AppIcon" />
+        <RemoveFolder Id="RemoveApplicationProgramsFolder" Directory="ApplicationProgramsFolder" On="uninstall" />
+        <RegistryValue Root="HKCU" Key="Software\NDAS" Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+      <Component Id="DesktopShortcut" Directory="DesktopFolder" Guid="*">
+        <Shortcut Id="DesktopShortcut" Name="NDAS 安全中心" Description="NDAS 本地安全中心"
+                  Target="[INSTALLFOLDER]NDAS.exe" WorkingDirectory="INSTALLFOLDER" Icon="AppIcon" />
+        <RegistryValue Root="HKCU" Key="Software\NDAS" Name="DesktopShortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+</Wix>

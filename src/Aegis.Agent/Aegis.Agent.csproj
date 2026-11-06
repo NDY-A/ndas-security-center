@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <RootNamespace>Aegis.Agent</RootNamespace>
+    <AssemblyName>Aegis.Agent</AssemblyName>
+    <Description>Aegis local automation API and DPAPI-protected credentials.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Aegis.Core\Aegis.Core.csproj" />
+    <ProjectReference Include="..\Aegis.Hips\Aegis.Hips.csproj" />
+  </ItemGroup>
+</Project>

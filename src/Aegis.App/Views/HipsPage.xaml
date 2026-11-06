@@ -1,0 +1,358 @@
+<Page
+    x:Class="Aegis.App.Views.HipsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Padding="{StaticResource AegisPagePadding}" RowSpacing="18">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0" Spacing="4">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <HyperlinkButton Content="威胁和防护保护" Click="BreadcrumbRoot_Click"
+                                     FontSize="30" FontWeight="SemiBold" Padding="0" MinWidth="0"
+                                     Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                     HorizontalContentAlignment="Left" VerticalAlignment="Top" />
+                    <TextBlock Text="›" FontSize="30" FontWeight="Light"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                    <TextBlock Text="威胁和防护设置" Style="{StaticResource AegisPageTitleStyle}" />
+                </StackPanel>
+                <TextBlock Text="实时防护、主动防护、排除项、扫描参数、外观与启动设置。"
+                           Style="{StaticResource AegisSecondaryTextStyle}" />
+                <InfoBar x:Name="ElevationInfo" IsOpen="False" IsClosable="False" Severity="Warning"
+                         Title="当前为标准权限" Message="更改 NDAS 设置需要管理员权限。">
+                    <InfoBar.ActionButton>
+                        <Button Content="以管理员身份重启" Click="RestartElevated_Click" />
+                    </InfoBar.ActionButton>
+                </InfoBar>
+            </StackPanel>
+
+            <Border Grid.Row="1" Style="{StaticResource AegisCardStyle}">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="实时防护" Style="{StaticResource AegisSectionTitleStyle}" />
+                    <TextBlock x:Name="RealtimeStatusText" Text="—" Style="{StaticResource AegisCaptionStyle}" />
+                    <ToggleSwitch x:Name="RealtimeToggle" OffContent="关" OnContent="开"
+                                  Toggled="RealtimeToggle_Toggled">
+                        <ToggleSwitch.Header>
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="实时保护" FontWeight="SemiBold" />
+                                <TextBlock Text="持续查找并停止恶意软件在你的设备上安装或运行。NDAS 会扫描新启动的程序、活动程序以及桌面/下载中的新增文件。"
+                                           Style="{StaticResource AegisCaptionStyle}" TextWrapping="Wrap" />
+                                <Border x:Name="RealtimeOffWarning" Visibility="Collapsed"
+                                        Background="{StaticResource AegisDangerBannerBrush}"
+                                        CornerRadius="6" Padding="12,10">
+                                    <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                        <Grid Width="20" Height="20" VerticalAlignment="Top">
+                                            <Ellipse Fill="{StaticResource AegisDangerIconBrush}" />
+                                            <TextBlock Text="✕" FontSize="11" FontWeight="Bold" Foreground="White"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Grid>
+                                        <TextBlock Text="实时保护已关闭，你的设备易受攻击。"
+                                                   Foreground="White" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ToggleSwitch.Header>
+                    </ToggleSwitch>
+                    <ToggleSwitch x:Name="ScanActiveToggle" OffContent="关" OnContent="开"
+                                  Toggled="ScanActiveToggle_Toggled">
+                        <ToggleSwitch.Header>
+                            <StackPanel Spacing="3">
+                                <TextBlock Text="活动程序扫描" FontWeight="SemiBold" />
+                                <TextBlock Text="对当前活动的用户程序做启发式检查；发现可疑行为时记录事件，命中强证据时会锁定文件。"
+                                           Style="{StaticResource AegisCaptionStyle}" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </ToggleSwitch.Header>
+                    </ToggleSwitch>
+                    <ToggleSwitch x:Name="AutoTerminateToggle" OffContent="关" OnContent="开"
+                                  Toggled="AutoTerminateToggle_Toggled">
+                        <ToggleSwitch.Header>
+                            <StackPanel Spacing="3">
+                                <TextBlock Text="恶意进程自动终止" FontWeight="SemiBold" />
+                                <TextBlock Text="进程扫描命中哈希、路径 IOC 或 YARA 时终止对应进程；系统关键进程、系统目录和排除项会被跳过。"
+                                           Style="{StaticResource AegisCaptionStyle}" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </ToggleSwitch.Header>
+                    </ToggleSwitch>
+                    <ToggleSwitch x:Name="BlockInjectionToggle" OffContent="关" OnContent="开"
+                                  Toggled="BlockInjectionToggle_Toggled">
+                        <ToggleSwitch.Header>
+                            <StackPanel Spacing="3">
+                                <TextBlock Text="注入与侧载防护" FontWeight="SemiBold" />
+                                <TextBlock Text="监视用户目录 DLL 注入或侧载到运行中的进程，并尝试终止目标进程。"
+                                           Style="{StaticResource AegisCaptionStyle}" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </ToggleSwitch.Header>
+                    </ToggleSwitch>
+                    <ToggleSwitch x:Name="BlockRegistryToggle" OffContent="关" OnContent="开"
+                                  Toggled="BlockRegistryToggle_Toggled">
+                        <ToggleSwitch.Header>
+                            <StackPanel Spacing="3">
+                                <TextBlock Text="注册表自启动保护" FontWeight="SemiBold" />
+                                <TextBlock Text="监视 Run/RunOnce 自启动项，发现可疑命令行时自动回滚该值。"
+                                           Style="{StaticResource AegisCaptionStyle}" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </ToggleSwitch.Header>
+                    </ToggleSwitch>
+                    <ToggleSwitch x:Name="IdleScanToggle" OffContent="关" OnContent="开"
+                                  Toggled="IdleScanToggle_Toggled">
+                        <ToggleSwitch.Header>
+                            <StackPanel Spacing="3">
+                                <TextBlock Text="空闲时自动扫描" FontWeight="SemiBold" />
+                                <TextBlock Text="在你离开电脑约 10 分钟后后台扫描用户桌面/下载/启动、公用桌面以及 Program Files、ProgramData 等关键位置；系统软件目录只按哈希/路径 IOC/YARA 强证据处理。"
+                                           Style="{StaticResource AegisCaptionStyle}" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </ToggleSwitch.Header>
+                    </ToggleSwitch>
+                    <ToggleSwitch x:Name="AutoDeleteP7bToggle" OffContent="关" OnContent="开"
+                                  Toggled="AutoDeleteP7bToggle_Toggled">
+                        <ToggleSwitch.Header>
+                            <StackPanel Spacing="3">
+                                <TextBlock Text="恶意 p7b 策略处理" FontWeight="SemiBold" />
+                                <TextBlock Text="发现签名无效、不受信任或包含 Enabled:Disabled 的 SiPolicy.p7b 时，先备份再删除；可信签名策略和目录占位不会被改动。"
+                                           Style="{StaticResource AegisCaptionStyle}" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </ToggleSwitch.Header>
+                    </ToggleSwitch>
+                    <ToggleSwitch x:Name="NotificationsToggle" OffContent="关" OnContent="开"
+                                  Toggled="NotificationsToggle_Toggled">
+                        <ToggleSwitch.Header>
+                            <StackPanel Spacing="3">
+                                <TextBlock Text="威胁通知" FontWeight="SemiBold" />
+                                <TextBlock Text="检测到威胁时立即发送通知；如果威胁未处理，每分钟重复提醒，直到你打开 NDAS 确认。"
+                                           Style="{StaticResource AegisCaptionStyle}" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </ToggleSwitch.Header>
+                    </ToggleSwitch>
+                    <TextBlock x:Name="IdleScanStatusText" Text="—" Style="{StaticResource AegisCaptionStyle}" />
+                    <InfoBar x:Name="RealtimeInfo" IsOpen="False" IsClosable="True" />
+                    <TextBlock Text="实时防护会扫描新启动的程序和当前活动的用户程序；注入/侧载与注册表阻断是用户态启发式，不是内核驱动。闲时扫描与 p7b 处理由 LocalSystem 防护服务执行。"
+                               Style="{StaticResource AegisCaptionStyle}" />
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Row="2" Style="{StaticResource AegisCardStyle}">
+                <StackPanel Spacing="12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="主动防护 (HIPS)" Style="{StaticResource AegisSectionTitleStyle}" />
+                            <TextBlock x:Name="StatusText" Text="读取中" Style="{StaticResource AegisMetricStyle}" />
+                            <TextBlock x:Name="MonitorText" Text="—" Style="{StaticResource AegisCaptionStyle}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Spacing="10" VerticalAlignment="Top" MaxWidth="430">
+                            <ToggleSwitch x:Name="HipsToggle" OffContent="关" OnContent="开"
+                                          Toggled="HipsToggle_Toggled">
+                                <ToggleSwitch.Header>
+                                    <StackPanel Spacing="3">
+                                        <TextBlock Text="启用主动防护 (HIPS)" FontWeight="SemiBold" />
+                                        <TextBlock Text="监视进程创建、敏感文件落盘和自启动项变更，记录可疑行为。"
+                                                   Style="{StaticResource AegisCaptionStyle}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </ToggleSwitch.Header>
+                            </ToggleSwitch>
+                            <ToggleSwitch x:Name="BlockToggle" OffContent="关" OnContent="开"
+                                          Toggled="BlockToggle_Toggled">
+                                <ToggleSwitch.Header>
+                                    <StackPanel Spacing="3">
+                                        <TextBlock Text="高危行为自动终止" FontWeight="SemiBold" />
+                                        <TextBlock Text="对 Critical 规则的命中尝试终止进程；系统目录、受保护进程和 NDAS 自身会被跳过。"
+                                                   Style="{StaticResource AegisCaptionStyle}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </ToggleSwitch.Header>
+                            </ToggleSwitch>
+                        </StackPanel>
+                    </Grid>
+
+                    <StackPanel Orientation="Horizontal" Spacing="30">
+                        <StackPanel>
+                            <TextBlock x:Name="EventCountText" Text="0" Style="{StaticResource AegisSectionTitleStyle}" />
+                            <TextBlock Text="事件总数" Style="{StaticResource AegisCaptionStyle}" />
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock x:Name="CriticalCountText" Text="0" Style="{StaticResource AegisSectionTitleStyle}" />
+                            <TextBlock Text="高危事件" Style="{StaticResource AegisCaptionStyle}" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <TextBlock x:Name="LastErrorText" Text="—" Style="{StaticResource AegisCaptionStyle}" />
+                    <InfoBar x:Name="HipsInfo" IsOpen="False" IsClosable="True" />
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Row="3" Style="{StaticResource AegisCardStyle}">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="扫描与排除项" Style="{StaticResource AegisSectionTitleStyle}" />
+                    <StackPanel Spacing="4">
+                        <NumberBox x:Name="MaxFileSizeBox" Header="单文件大小上限 (MiB)"
+                                   Minimum="1" Maximum="2048" Value="512"
+                                   SpinButtonPlacementMode="Compact" />
+                        <TextBlock Text="超过此大小的文件会被跳过；适用于手动扫描、实时扫描和闲时扫描。"
+                                   Style="{StaticResource AegisCaptionStyle}" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <ToggleSwitch x:Name="DefaultExclusionsToggle" OffContent="关" OnContent="开">
+                        <ToggleSwitch.Header>
+                            <StackPanel Spacing="3">
+                                <TextBlock Text="使用默认排除项" FontWeight="SemiBold" />
+                                <TextBlock Text="自动排除 NDAS 自身、Windows 系统目录、临时目录和常见安全工具目录，避免误报和性能损耗。"
+                                           Style="{StaticResource AegisCaptionStyle}" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </ToggleSwitch.Header>
+                    </ToggleSwitch>
+                    <TextBox x:Name="ExclusionsBox" Header="排除项（每行一个路径）"
+                             AcceptsReturn="True" TextWrapping="Wrap" Height="130"
+                             PlaceholderText="C:\路径\排除目录" />
+                    <TextBox x:Name="AllowedHashesBox" Header="允许的 SHA-256（每行一个）"
+                             AcceptsReturn="True" TextWrapping="Wrap" Height="110"
+                             PlaceholderText="64 位十六进制哈希；命中后扫描和实时防护直接跳过" />
+                    <Button Content="保存扫描、排除项与白名单" Click="SaveScan_Click" Style="{StaticResource AccentButtonStyle}" />
+                    <InfoBar x:Name="ScanInfo" IsOpen="False" IsClosable="True" />
+                    <TextBlock Text="NDAS 自身目录、数据目录和自动化目录始终自动排除；自定义排除最多 256 条、允许哈希最多 512 条。排除项同时用于扫描和 HIPS 行为过滤。"
+                               Style="{StaticResource AegisCaptionStyle}" />
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Row="4" Style="{StaticResource AegisCardStyle}">
+                <StackPanel Spacing="12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="隔离区" Style="{StaticResource AegisSectionTitleStyle}" />
+                        <TextBlock x:Name="QuarantineCountText" Grid.Column="1" Text="0 项"
+                                   Style="{StaticResource AegisCaptionStyle}" VerticalAlignment="Center" />
+                    </Grid>
+
+                    <ListView x:Name="QuarantineList" SelectionMode="None" MaxHeight="300" Visibility="Collapsed">
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Padding="2,8" ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Spacing="3">
+                                        <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Detail}" Style="{StaticResource AegisCaptionStyle}" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding OriginalPath}" Style="{StaticResource AegisCaptionStyle}" TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Top">
+                                        <Button Content="还原" Click="RestoreQuarantine_Click" Tag="{Binding}" Padding="10,4" FontSize="12" />
+                                        <Button Content="删除" Click="DeleteQuarantine_Click" Tag="{Binding}" Padding="10,4" FontSize="12" />
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+
+                    <Border x:Name="EmptyQuarantinePanel" Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                            CornerRadius="10" Padding="18">
+                        <StackPanel Spacing="5">
+                            <TextBlock Text="隔离区为空" FontWeight="SemiBold" />
+                            <TextBlock Text="在扫描结果中对发现项执行“隔离”后，文件会出现在这里。"
+                                       Style="{StaticResource AegisCaptionStyle}" />
+                        </StackPanel>
+                    </Border>
+
+                    <InfoBar x:Name="QuarantineInfo" IsOpen="False" IsClosable="True" />
+                    <TextBlock Text="隔离文件保存在本机 NDAS 数据目录，以 .bin 扩展名存放，不能直接执行；还原前会检查原位置是否已有同名文件。"
+                               Style="{StaticResource AegisCaptionStyle}" />
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Row="5" Style="{StaticResource AegisCardStyle}">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="外观与数据" Style="{StaticResource AegisSectionTitleStyle}" />
+                    <ComboBox x:Name="ThemeBox" Header="主题" SelectedIndex="0" HorizontalAlignment="Stretch"
+                              SelectionChanged="Theme_SelectionChanged">
+                        <ComboBoxItem Content="跟随系统" />
+                        <ComboBoxItem Content="浅色" />
+                        <ComboBoxItem Content="深色" />
+                    </ComboBox>
+                    <TextBlock x:Name="DataRootText" Text="—" Style="{StaticResource AegisCaptionStyle}" />
+                    <TextBlock x:Name="SettingsFileText" Text="—" Style="{StaticResource AegisCaptionStyle}" />
+                    <TextBlock x:Name="VersionText" Text="—" Style="{StaticResource AegisCaptionStyle}" />
+                    <TextBlock x:Name="SignatureSourceText" Text="—" Style="{StaticResource AegisCaptionStyle}" />
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Row="6" Style="{StaticResource AegisCardStyle}">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="启动" Style="{StaticResource AegisSectionTitleStyle}" />
+                    <ToggleSwitch x:Name="AutoStartToggle" OffContent="关" OnContent="开"
+                                  Toggled="AutoStartToggle_Toggled">
+                        <ToggleSwitch.Header>
+                            <StackPanel Spacing="3">
+                                <TextBlock Text="登录时自动启动安全服务" FontWeight="SemiBold" />
+                                <TextBlock Text="登录 Windows 后自动在后台托盘运行，让实时防护和防护服务持续工作。"
+                                           Style="{StaticResource AegisCaptionStyle}" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </ToggleSwitch.Header>
+                    </ToggleSwitch>
+                    <TextBlock x:Name="AutoStartStatusText" Text="—" Style="{StaticResource AegisCaptionStyle}" />
+                    <InfoBar x:Name="AutoStartInfo" IsOpen="False" IsClosable="True" />
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Row="7" Style="{StaticResource AegisCardStyle}">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="最近主动防护事件" Style="{StaticResource AegisSectionTitleStyle}" />
+                    <ListView x:Name="EventList" SelectionMode="None" MaxHeight="380" Visibility="Collapsed">
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Padding="2,9" ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="76" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Background="{Binding BadgeBackground}" CornerRadius="999" Padding="8,4" VerticalAlignment="Top">
+                                        <TextBlock Text="{Binding SeverityText}" FontSize="11" FontWeight="SemiBold"
+                                                   Foreground="{Binding BadgeForeground}" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1" Spacing="3">
+                                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Detail}" Style="{StaticResource AegisCaptionStyle}"
+                                                   TextTrimming="CharacterEllipsis" MaxLines="2" />
+                                        <TextBlock Text="{Binding RuleId}" Style="{StaticResource AegisCaptionStyle}" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="2" Text="{Binding TimeText}" Style="{StaticResource AegisCaptionStyle}"
+                                               VerticalAlignment="Top" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+
+                    <Border x:Name="EmptyEventsPanel" Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                            CornerRadius="10" Padding="18">
+                        <StackPanel Spacing="5">
+                            <TextBlock Text="还没有主动防护事件" FontWeight="SemiBold" />
+                            <TextBlock Text="实时扫描、进程链、敏感目录落盘和自启动项变更会记录在这里。"
+                                       Style="{StaticResource AegisCaptionStyle}" />
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Text="HIPS 默认只告警；开启“高危行为自动终止”后只终止 Critical 规则、且不在 NDAS/系统目录内的进程。"
+                               Style="{StaticResource AegisCaptionStyle}" />
+                </StackPanel>
+            </Border>
+        </Grid>
+    </ScrollViewer>
+</Page>

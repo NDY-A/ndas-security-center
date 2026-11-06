@@ -1,0 +1,63 @@
+# NDAS 特殊路径检察清单
+# 格式：绝对路径 | 标签 | 备注（备注可省略）
+# 命中即按恶意路径处理，扫描时判 Critical。
+C:\Users\Public\Pictures\Hq9eYkE\edge.xml | 恶意配置/edge
+c:\users\administrator\appdata\local\temp\6696.tmp | 临时载荷
+C:\Program Files (x86)\h2AM74\XPSPLOG.dll | 恶意加载器/XPSPLOG
+C:\Users\Public\Libraries\kfKoZk\ucfuZb.dat | 恶意载荷/数据
+C:\Windows\System32\CodeIntegrity\SiPolicy.p7b | WDAC 篡改/SiPolicy | 企业未部署 WDAC 时出现此文件高度可疑；目录形态为伪装占位
+C:\Users\Administrator\AppData\Roaming\comain_ev2f79\dxyvnb.ti | 窃密载荷/comain
+C:\Program Files (x86)\PbeUma\XPSPLOG.dll | 恶意加载器/XPSPLOG
+C:\Program Files (x86)\gxBUbQ\XPSPLOG.dll | 恶意加载器/XPSPLOG
+C:\Users\Public\Libraries\kfKoZk\edge.xml | 恶意配置/edge
+C:\Program Files (x86)\mY5j1\XPSPLOG.dll | 恶意加载器/XPSPLOG
+C:\Users\Public\Downloads\mE5Os\c63vNt.dat | 恶意载荷/数据
+C:\Users\Administrator\AppData\Roaming\comain_ev2c34\fhkan.oi | 窃密载荷/comain
+c:\users\administrator\appdata\local\temp\7ea7.tmp | 临时载荷
+C:\Users\Administrator\AppData\Local\Microsoft\Windows\RunService\WinRunService.cfg | 持久化/WinRunService
+C:\Program Files\Common Files\nvml.bin | DLL 侧载/nvml
+C:\Users\Administrator\AppData\Local\Microsoft\Windows\UPPS\icsvcext.dll | UPPS 劫持/icsvcext
+C:\Program Files (x86)\3PlrS1\thumbs.db | 恶意落点/伪装缩略图
+C:\Users\Administrator\AppData\Local\Microsoft\Windows\INetCache\IE\5L4CE25C\2[1] | 浏览器投递/IE 缓存
+C:\Users\Administrator\AppData\Local\pri\ZrW2ou\is-HDB1B.tmp | 临时载荷
+c:\users\administrator\appdata\local\temp\tmpc36b.tmp | 临时载荷
+C:\Users\Public\Documents\Microsoft\Windows\Logs\svchost_AAACCCCABBBABBCAACACABAABAABBBBCABCABBABCCCABAABCBABABC.exe | 伪装进程/svchost
+C:\Users\Administrator\AppData\Roaming\comain_ev2f79\otrm.oi | 窃密载荷/comain
+C:\Users\Administrator\AppData\Local\Microsoft\Windows\INetCache\IE\HSG8MQ3I\3[1] | 浏览器投递/IE 缓存
+C:\Users\Public\y31uRp\UxEnhance64.dll | 恶意加载器/UxEnhance64
+c:\users\administrator\appdata\local\temp\tmp197f.tmp | 临时载荷
+C:\Users\Administrator\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\WindowsService.exe | 自启动驻留/WindowsService
+C:\Users\Administrator\AppData\Local\Temp\nso5A68.tmp\DcryptDll.dll | 解密加载器/DcryptDll
+C:\Users\Public\Pictures\Hq9eYkE\edge.jpg | 恶意配置/edge
+C:\Users\Public\Pictures\Hq9eYkE\Z4GOuy.dat | 恶意载荷/数据
+C:\Program Files\Common Files\nvml.dll | DLL 侧载/nvml
+C:\Program Files (x86)\3PlrS1\XPSPLOG.dll | 恶意加载器/XPSPLOG
+C:\Users\Administrator\AppData\Roaming\comain_ev2c34\ev2c34.exe | 窃密载荷/comain
+C:\ProgramLog\Windows\AppData\Local\Microsoft\Log\setup.exe | 投放器/setup
+c:\users\administrator\appdata\local\temp\ce3e.tmp | 临时载荷
+C:\Users\Public\4IPYbA\adoresd.dat | 恶意载荷/数据
+C:\Users\Public\4IPYbA\UxEnhance64.dll | 恶意加载器/UxEnhance64
+C:\Users\Administrator\AppData\Roaming\comain_ev2f79\yinma.vc | 恶意载荷/yinma
+C:\ProgramLog\Windows\AppData\Local\Microsoft\Log\log.s | 恶意组件/log.s
+C:\Windows\System32\config\systemprofile\AppData\Local\Microsoft\Windows\UPPS\icsvcext.dll | UPPS 劫持/icsvcext
+C:\Users\Public\SpNehL\UxEnhance64.dll | 恶意加载器/UxEnhance64
+C:\Users\Public\Downloads\mE5Os\EnfBU22.exe | 恶意载荷/EnfBU22
+C:\Users\Public\GKQW4z\UxEnhance64.dll | 恶意加载器/UxEnhance64
+C:\Users\Administrator\AppData\Local\externa\u3gET\is-F9BT6.tmp | 临时载荷
+C:\msys64\S73fjJ\cCTBs\wz1fO\o.C | 恶意组件/msys64 残留
+C:\ProgramData\ntrin.er | 恶意载荷/ntrin
+C:\Users\Administrator\AppData\Roaming\comain_ev2c34\bteuns.pt | 窃密载荷/comain
+C:\Program Files (x86)\mY5j1\thumbs.db | 恶意落点/伪装缩略图
+C:\Users\Administrator\AppData\Local\pri\ZrW2ou\is-7G12B.tmp | 临时载荷
+C:\Users\Public\Downloads\mE5Os\inin.txt | 恶意配置/inin
+C:\Program Files (x86)\h2AM74\thumbs.db | 恶意落点/伪装缩略图
+c:\users\administrator\appdata\local\temp\tmpc1a6.tmp | 临时载荷
+C:\Program Files (x86)\gxBUbQ\thumbs.db | 恶意落点/伪装缩略图
+C:\Users\Public\Libraries\kfKoZk\U00Zd.exe | 恶意载荷/U00Zd
+C:\Users\Administrator\AppData\Roaming\comain_ev2f79\ev2f79.exe | 窃密载荷/comain
+C:\Users\Administrator\AppData\Roaming\bnymir.ou | 恶意载荷/bnymir
+C:\Users\Administrator\AppData\Roaming\comain_ev2c34\cmrsk.ce | 窃密载荷/comain
+C:\Users\Public\Downloads\mE5Os\EnfBU22.dat | 恶意载荷/数据
+C:\Users\Administrator\AppData\Local\Microsoft\Windows\INetCache\IE\OKVYXXBW\4[1] | 浏览器投递/IE 缓存
+C:\Users\Public\Pictures\Hq9eYkE\WmbjCS.dat | 恶意载荷/数据
+C:\Users\Public\Libraries\kfKoZk\U00Zd.dat | 恶意载荷/数据

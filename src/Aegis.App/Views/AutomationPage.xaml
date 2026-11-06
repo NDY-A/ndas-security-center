@@ -1,0 +1,108 @@
+<Page
+    x:Class="Aegis.App.Views.AutomationPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Padding="{StaticResource AegisPagePadding}" RowSpacing="18">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Spacing="4">
+                    <TextBlock Text="自动化接口" Style="{StaticResource AegisPageTitleStyle}" />
+                    <TextBlock Text="给本机 agent 留的受控操作面：只绑定回环，全部请求需要 Bearer 密钥。"
+                               Style="{StaticResource AegisSecondaryTextStyle}" />
+                </StackPanel>
+                <Border Grid.Column="1" Style="{StaticResource AegisPillStyle}" VerticalAlignment="Top">
+                    <TextBlock Text="127.0.0.1 only" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </Border>
+            </Grid>
+
+            <Border Grid.Row="1" Style="{StaticResource AegisCardStyle}">
+                <StackPanel Spacing="12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Spacing="4">
+                            <TextBlock x:Name="StatusText" Text="读取中" Style="{StaticResource AegisMetricStyle}" />
+                            <TextBlock x:Name="BaseUrlText" Text="—" Style="{StaticResource AegisCaptionStyle}" />
+                        </StackPanel>
+                        <ToggleSwitch x:Name="EnableToggle" Grid.Column="1" Header="启用接口"
+                                      Toggled="EnableToggle_Toggled" VerticalAlignment="Top" />
+                    </Grid>
+
+                    <StackPanel Orientation="Horizontal" Spacing="30">
+                        <StackPanel>
+                            <TextBlock x:Name="PortText" Text="—" Style="{StaticResource AegisSectionTitleStyle}" />
+                            <TextBlock Text="端口" Style="{StaticResource AegisCaptionStyle}" />
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock x:Name="RequestsText" Text="0" Style="{StaticResource AegisSectionTitleStyle}" />
+                            <TextBlock Text="请求数" Style="{StaticResource AegisCaptionStyle}" />
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock x:Name="UptimeText" Text="—" Style="{StaticResource AegisSectionTitleStyle}" />
+                            <TextBlock Text="运行时长" Style="{StaticResource AegisCaptionStyle}" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <TextBlock x:Name="LastErrorText" Text="—" Style="{StaticResource AegisCaptionStyle}" />
+                    <InfoBar x:Name="AgentInfo" IsOpen="False" IsClosable="True" />
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Row="2" Style="{StaticResource AegisCardStyle}">
+                <StackPanel Spacing="12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="本机密钥" Style="{StaticResource AegisSectionTitleStyle}" />
+                            <TextBlock x:Name="KeyHintText" Text="—" Style="{StaticResource AegisCaptionStyle}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                            <Button Content="显示密钥" Click="ShowKey_Click" />
+                            <Button Content="复制" Click="CopyKey_Click" />
+                            <Button Content="轮换" Click="RotateKey_Click" />
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock x:Name="KeyMetaText" Text="—" Style="{StaticResource AegisCaptionStyle}" />
+                    <TextBox x:Name="KeyTextBox" IsReadOnly="True" Visibility="Collapsed"
+                             FontFamily="Cascadia Mono, Consolas" />
+                    <TextBlock Text="密钥使用 DPAPI（当前用户）保护；显示后请只复制到本机 agent，不要写入脚本或公开仓库。"
+                               Style="{StaticResource AegisCaptionStyle}" />
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Row="3" Style="{StaticResource AegisCardStyle}">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="接口清单（v1）" Style="{StaticResource AegisSectionTitleStyle}" />
+                    <TextBlock Text="GET  /api/v1/health&#x0a;GET  /api/v1/status&#x0a;GET  /api/v1/hips/status&#x0a;GET  /api/v1/hips/events&#x0a;GET  /api/v1/scans&#x0a;POST /api/v1/scans&#x0a;GET  /api/v1/scans/{id}&#x0a;POST /api/v1/scans/{id}/cancel"
+                               Style="{StaticResource AegisCodeStyle}" />
+                    <TextBlock Text="请求头：Authorization: Bearer &lt;key&gt;；请求体：application/json。当前接口提供状态查询、HIPS 事件只读查询、扫描启动/查询/取消，不提供删除、隔离或改配置动作。"
+                               Style="{StaticResource AegisCaptionStyle}" />
+                    <TextBlock Text="安全边界：仅监听 127.0.0.1，无 CORS，无分块请求体；后续若增加隔离/恢复/更新动作，应引入一次性确认和审计日志。"
+                               Style="{StaticResource AegisCaptionStyle}" />
+                </StackPanel>
+            </Border>
+        </Grid>
+    </ScrollViewer>
+</Page>
