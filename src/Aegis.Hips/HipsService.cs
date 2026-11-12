@@ -640,13 +640,14 @@ public sealed class HipsService : IDisposable
 
                     if (pair.Value is { Length: > 0 } value && !IsSelfText(value))
                     {
+                        // AppData is where most legitimate user-level apps live, so it is not
+                        // suspicious on its own (that flagged every per-user program's autostart).
                         var suspicious = value.Contains("powershell", StringComparison.OrdinalIgnoreCase) ||
                                          value.Contains("mshta", StringComparison.OrdinalIgnoreCase) ||
                                          value.Contains("rundll32", StringComparison.OrdinalIgnoreCase) ||
                                          value.Contains("http://", StringComparison.OrdinalIgnoreCase) ||
                                          value.Contains("https://", StringComparison.OrdinalIgnoreCase) ||
-                                         value.Contains("\\temp\\", StringComparison.OrdinalIgnoreCase) ||
-                                         value.Contains("\\appdata\\", StringComparison.OrdinalIgnoreCase);
+                                         value.Contains("\\temp\\", StringComparison.OrdinalIgnoreCase);
                         var blocked = suspicious && BlockRegistry && TryRemoveRunValue(pair.Key);
                         AddEvent(new HipsEvent(DateTimeOffset.Now, "HIPS.REG.RUN",
                             suspicious ? "可疑自启动项变更" : "自启动项变更",
