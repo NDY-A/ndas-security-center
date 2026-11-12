@@ -11,6 +11,8 @@ public sealed class ScanCoordinator : IDisposable
     private readonly SemaphoreSlim _executionGate = new(1, 1);
     private bool _disposed;
 
+    public event EventHandler<ScanJob>? JobCompleted;
+
     public ScanJob Start(AegisScanner scanner, ScanRequest request)
     {
         ArgumentNullException.ThrowIfNull(scanner);
@@ -80,6 +82,7 @@ public sealed class ScanCoordinator : IDisposable
             else
             {
                 job.MarkCompleted(summary);
+                RaiseJobCompleted(job);
             }
         }
         catch (OperationCanceledException)
@@ -98,6 +101,18 @@ public sealed class ScanCoordinator : IDisposable
             }
 
             TrimHistory();
+        }
+    }
+
+    private void RaiseJobCompleted(ScanJob job)
+    {
+        try
+        {
+            JobCompleted?.Invoke(this, job);
+        }
+        catch
+        {
+            // Subscriber failures must not break scan bookkeeping.
         }
     }
 

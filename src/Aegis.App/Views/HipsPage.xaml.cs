@@ -97,6 +97,9 @@ public sealed partial class HipsPage : Page
             BlockRegistryToggle.IsOn = settings.RealtimeBlockRegistry;
             IdleScanToggle.IsOn = settings.IdleScanEnabled;
             AutoDeleteP7bToggle.IsOn = settings.AutoDeleteMaliciousP7b;
+            FirewallBlockToggle.IsOn = settings.FirewallAutoBlockEnabled;
+            SandboxToggle.IsOn = settings.SandboxEnabled;
+            SandboxRemediateToggle.IsOn = settings.SandboxAutoRemediate;
             NotificationsToggle.IsOn = settings.NotificationsEnabled;
             AutoStartToggle.IsOn = settings.AutoStartEnabled;
         }
@@ -141,6 +144,7 @@ public sealed partial class HipsPage : Page
 
         var services = App.Services;
         var status = services.HipsStatus;
+        UpdateSandboxStatus(services, status);
         RealtimeOffWarning.Visibility = services.IsInitialized && !services.Settings.RealtimeProtectionEnabled
             ? Visibility.Visible
             : Visibility.Collapsed;
@@ -205,6 +209,127 @@ public sealed partial class HipsPage : Page
         EventList.ItemsSource = rows;
         EventList.Visibility = rows.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         EmptyEventsPanel.Visibility = rows.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void UpdateSandboxStatus(AppServices services, Aegis.Core.Service.ServiceStatus? status)
+    {
+        if (!services.IsInitialized)
+        {
+            SandboxStatusText.Text = "沙箱分析：安全引擎正在初始化。";
+            return;
+        }
+
+        if (!services.UseService)
+        {
+            SandboxStatusText.Text = "沙箱分析：需要安装并运行 NDAS 防护服务（由 LocalSystem 服务执行）。";
+            return;
+        }
+
+        if (status is null)
+        {
+            SandboxStatusText.Text = "沙箱分析：—";
+            return;
+        }
+
+        if (!status.SandboxSupported)
+        {
+            SandboxStatusText.Text = "沙箱分析：需要将 NDAS 防护服务升级到 0.0.4.0a。";
+            return;
+        }
+
+        if (!status.SandboxEnabled)
+        {
+            SandboxStatusText.Text = "沙箱分析：已关闭。";
+            return;
+        }
+
+        if (!status.SandboxAvailable)
+        {
+            SandboxStatusText.Text = "沙箱分析：组件不可用"
+                                     + (status.SandboxLastError is { Length: > 0 } error ? "（" + error + "）" : "。");
+            return;
+        }
+
+        var parts = new List<string> { "引擎 " + status.SandboxEngineVersion };
+        if (status.SandboxAnalyzing)
+        {
+            parts.Add("正在分析");
+        }
+        else if (status.SandboxQueueDepth > 0)
+        {
+            parts.Add($"排队 {status.SandboxQueueDepth}");
+        }
+
+        parts.Add($"已分析 {status.SandboxAnalyzed:N0}");
+        parts.Add($"判定恶意 {status.SandboxMalicious:N0}");
+        var text = "沙箱分析：" + string.Join(" · ", parts);
+        if (status.SandboxLastAt is { } lastAt)
+        {
+            var path = string.IsNullOrWhiteSpace(status.SandboxLastPath)
+                ? string.Empty
+                : " " + Path.GetFileName(status.SandboxLastPath);
+            text += $"\n最近 {lastAt.ToLocalTime():MM-dd HH:mm}{path} · {status.SandboxLastVerdict}（评分 {status.SandboxLastScore}）";
+        }
+
+        if (status.SandboxLastError is { Length: > 0 } lastError)
+        {
+            text += "\n错误：" + lastError;
+        }
+
+        SandboxStatusText.Text = text;
+    }
+
+    private async void SandboxToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_suppressToggles || !_ready || SandboxToggle.IsOn == App.Services.Settings.SandboxEnabled)
+        {
+            return;
+        }
+
+        var enabled = SandboxToggle.IsOn;
+        try
+        {
+            await App.Services.SetSandboxEnabledAsync(enabled);
+            ShowSandboxInfo(InfoBarSeverity.Informational,
+                enabled ? "高熵样本沙箱分析已开启" : "高熵样本沙箱分析已关闭",
+                enabled
+                    ? "实时/闲时扫描发现高熵未知 PE 时，会排队交给内置 Speakeasy 模拟器做行为分析。"
+                    : "高熵未知样本不再提交沙箱，只按本地启发式处理。");
+        }
+        catch (Exception exception)
+        {
+            ShowSandboxInfo(InfoBarSeverity.Error, "保存失败", exception.Message);
+            RevertToggle(SandboxToggle, !enabled);
+        }
+
+        RefreshStatus();
+    }
+
+    private async void SandboxRemediateToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_suppressToggles || !_ready ||
+            SandboxRemediateToggle.IsOn == App.Services.Settings.SandboxAutoRemediate)
+        {
+            return;
+        }
+
+        var enabled = SandboxRemediateToggle.IsOn;
+        try
+        {
+            await App.Services.SetSandboxAutoRemediateAsync(enabled);
+            ShowSandboxInfo(enabled ? InfoBarSeverity.Warning : InfoBarSeverity.Informational,
+                enabled ? "沙箱自动处置已开启" : "沙箱结果只告警",
+                enabled
+                    ? "沙箱判定恶意后会自动锁定文件、终止关联进程并封禁已知恶意网络指标。"
+                    : "沙箱判定恶意时只记录事件，不自动锁定/终止。");
+        }
+        catch (Exception exception)
+        {
+            ShowSandboxInfo(InfoBarSeverity.Error, "保存失败", exception.Message);
+            RevertToggle(SandboxRemediateToggle, !enabled);
+        }
+
+        RefreshStatus();
     }
 
     private async void HipsToggle_Toggled(object sender, RoutedEventArgs e)
@@ -367,6 +492,30 @@ public sealed partial class HipsPage : Page
         {
             ShowRealtimeInfo(InfoBarSeverity.Error, "保存失败", exception.Message);
             RevertToggle(AutoDeleteP7bToggle, !enabled);
+        }
+
+        RefreshStatus();
+    }
+
+    private async void FirewallBlockToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_suppressToggles || !_ready || FirewallBlockToggle.IsOn == App.Services.Settings.FirewallAutoBlockEnabled)
+        {
+            return;
+        }
+
+        var enabled = FirewallBlockToggle.IsOn;
+        try
+        {
+            await App.Services.SetFirewallAutoBlockAsync(enabled);
+            ShowRealtimeInfo(enabled ? InfoBarSeverity.Warning : InfoBarSeverity.Informational,
+                enabled ? "网络指标自动封禁已开启" : "网络指标自动封禁已关闭",
+                enabled ? "扫描命中恶意域名/IP 后，防护服务会写入 hosts 回环并创建 NDAS-IOC-* 防火墙规则；关闭后会自动删除 NDAS 自己创建的条目。" : "已删除 NDAS 自己创建的网络封禁条目，不再自动写 hosts/防火墙。");
+        }
+        catch (Exception exception)
+        {
+            ShowRealtimeInfo(InfoBarSeverity.Error, "保存失败", exception.Message);
+            RevertToggle(FirewallBlockToggle, !enabled);
         }
 
         RefreshStatus();
@@ -627,6 +776,14 @@ public sealed partial class HipsPage : Page
         HipsInfo.Title = title;
         HipsInfo.Message = message;
         HipsInfo.IsOpen = true;
+    }
+
+    private void ShowSandboxInfo(InfoBarSeverity severity, string title, string message)
+    {
+        SandboxInfo.Severity = severity;
+        SandboxInfo.Title = title;
+        SandboxInfo.Message = message;
+        SandboxInfo.IsOpen = true;
     }
 
     private void ShowRealtimeInfo(InfoBarSeverity severity, string title, string message)

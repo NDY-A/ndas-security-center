@@ -21,7 +21,29 @@ public static class ElevationHelper
         }
     }
 
-    public static void RestartElevated()
+    public static bool TryLaunchContainRequest()
+    {
+        var executable = ResolveExecutable();
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = executable,
+                Arguments = "--contain-request",
+                UseShellExecute = true,
+                Verb = "runas",
+                WorkingDirectory = AppContext.BaseDirectory
+            });
+            return true;
+        }
+        catch
+        {
+            // The user declined the UAC prompt.
+            return false;
+        }
+    }
+
+    private static string ResolveExecutable()
     {
         var executable = Environment.ProcessPath;
         if (string.IsNullOrWhiteSpace(executable) || !File.Exists(executable))
@@ -33,6 +55,13 @@ public static class ElevationHelper
         {
             throw new FileNotFoundException("找不到 NDAS 可执行文件。", executable);
         }
+
+        return executable;
+    }
+
+    public static void RestartElevated()
+    {
+        var executable = ResolveExecutable();
 
         Process.Start(new ProcessStartInfo
         {

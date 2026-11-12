@@ -22,6 +22,7 @@
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="NDAS">
         <Directory Id="SERVICEFOLDER" Name="Service" />
+        <Directory Id="SANDBOXFOLDER" Name="Sandbox" />
       </Directory>
     </StandardDirectory>
 
@@ -34,6 +35,7 @@
     <Feature Id="MainFeature" Title="NDAS 安全中心" Level="1">
       <ComponentGroupRef Id="AppFiles" />
       <ComponentGroupRef Id="ServiceFiles" />
+      <ComponentGroupRef Id="SandboxFiles" />
       <ComponentGroupRef Id="Shortcuts" />
     </Feature>
   </Package>
@@ -62,6 +64,12 @@
                         Vital="yes" />
         <ServiceControl Id="NdasServiceControl" Name="NDASService" Start="install" Stop="both" Remove="uninstall" Wait="yes" />
       </Component>
+    </ComponentGroup>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="SandboxFiles" Directory="SANDBOXFOLDER">
+      <Files Include="$(var.SandboxDir)\**" />
     </ComponentGroup>
   </Fragment>
 

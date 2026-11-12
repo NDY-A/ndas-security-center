@@ -17,6 +17,12 @@ public sealed class ServiceClient
     public Task<ServiceStatus?> ConfigureAsync(ServiceConfiguration settings, CancellationToken cancellationToken = default) =>
         SendAsync(new ServiceRequest { Command = "configure", Settings = settings }, cancellationToken);
 
+    public Task<ServiceStatus?> StartContainmentAsync(CancellationToken cancellationToken = default) =>
+        SendAsync(new ServiceRequest { Command = "contain" }, cancellationToken);
+
+    public Task<ServiceStatus?> AbortContainmentAsync(CancellationToken cancellationToken = default) =>
+        SendAsync(new ServiceRequest { Command = "contain-abort" }, cancellationToken);
+
     public async Task<bool> PingAsync(CancellationToken cancellationToken = default) =>
         await GetStatusAsync(cancellationToken).ConfigureAwait(false) is not null;
 

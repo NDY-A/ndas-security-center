@@ -12,3 +12,4 @@ dist/
 .nuget-packages/
 .tmp/
 .build-probe
+installer/.cache/

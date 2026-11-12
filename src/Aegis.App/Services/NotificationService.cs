@@ -1,3 +1,4 @@
+using Aegis.Core.Infrastructure;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.Windows.AppNotifications;
 using Microsoft.Windows.AppNotifications.Builder;
@@ -8,17 +9,37 @@ public static class NotificationService
 {
     private static bool _registered;
 
+    public static bool IsRegistered => _registered;
+
     public static void Initialize()
     {
         try
         {
-            AppNotificationManager.Default.Register();
+            // AppNotificationManager requires handlers to be attached before Register().
             AppNotificationManager.Default.NotificationInvoked += OnNotificationInvoked;
+            AppNotificationManager.Default.Register();
             _registered = true;
+            Log("AppNotification registered");
+        }
+        catch (Exception exception)
+        {
+            _registered = false;
+            Log("AppNotification register failed: " + exception.GetType().Name + ": " + exception.Message);
+        }
+    }
+
+    private static void Log(string message)
+    {
+        try
+        {
+            Directory.CreateDirectory(AppPaths.LogsRoot);
+            File.AppendAllText(
+                Path.Combine(AppPaths.LogsRoot, "notifications.log"),
+                $"{DateTimeOffset.UtcNow:u} {message}{Environment.NewLine}");
         }
         catch
         {
-            _registered = false;
+            // Best-effort only.
         }
     }
 
@@ -56,12 +77,17 @@ public static class NotificationService
                     .AddButton(new AppNotificationButton("打开 NDAS").AddArgument("action", "open"))
                     .BuildNotification();
                 AppNotificationManager.Default.Show(notification);
+                Log("show warning: " + title);
                 return;
             }
-            catch
+            catch (Exception exception)
             {
-                // Fall through to the in-app notification.
+                Log("show warning failed: " + exception.GetType().Name + ": " + exception.Message);
             }
+        }
+        else
+        {
+            Log("show warning skipped (not registered): " + title);
         }
 
         try
@@ -87,12 +113,17 @@ public static class NotificationService
                     .AddButton(new AppNotificationButton("打开 NDAS").AddArgument("action", "open"))
                     .BuildNotification();
                 AppNotificationManager.Default.Show(notification);
+                Log("show threat: " + title);
                 return;
             }
-            catch
+            catch (Exception exception)
             {
-                // Fall through to the in-app notification.
+                Log("show threat failed: " + exception.GetType().Name + ": " + exception.Message);
             }
+        }
+        else
+        {
+            Log("show threat skipped (not registered): " + title);
         }
 
         try

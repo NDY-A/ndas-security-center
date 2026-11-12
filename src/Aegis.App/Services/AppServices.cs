@@ -19,7 +19,7 @@ namespace Aegis.App.Services;
 public sealed class AppServices : IAsyncDisposable
 {
     public const string ProductName = "NDAS 安全中心";
-    public const string ProductVersion = "rs_preelease-0.0.2.0a";
+    public const string ProductVersion = "rs_preelease-0.0.5.0a";
 
     private readonly object _initLock = new();
     private readonly object _scannerLock = new();
@@ -85,6 +85,12 @@ public sealed class AppServices : IAsyncDisposable
 
     public bool UseService => _useService;
 
+    public ServiceThreatIncident? ActiveThreat => _useService ? _serviceStatus?.ActiveThreat : null;
+
+    public ServiceContainmentStatus? ContainmentStatus => _useService ? _serviceStatus?.Containment : null;
+
+    public bool ContainmentSupported => _useService;
+
     public bool HipsRunning => _useService ? _serviceStatus?.HipsRunning == true : _hips?.IsRunning == true;
 
     public string? HipsLastError => _useService ? _serviceStatus?.LastError : _hips?.LastError;
@@ -136,6 +142,7 @@ public sealed class AppServices : IAsyncDisposable
             SettingsStore = new AppSettingsStore(AppPaths.SettingsFile);
             Settings = await SettingsStore.LoadAsync().ConfigureAwait(false);
             ThreatReminderService.Configure(Settings.NotificationsEnabled);
+            Coordinator.JobCompleted += OnScanJobCompleted;
             SeedDirectory = Path.Combine(applicationDirectory, "Seed");
             if (!Directory.Exists(SeedDirectory))
             {
@@ -590,7 +597,8 @@ public sealed class AppServices : IAsyncDisposable
             RequestTimeout = TimeSpan.FromSeconds(20)
         };
 
-        return new AgentApiHost(options, Coordinator, () => Scanner, CreateScanOptions, _hips);
+        return new AgentApiHost(options, Coordinator, () => Scanner, CreateScanOptions, _hips,
+            () => _useService ? _serviceStatus : null);
     }
 
     private HipsOptions CreateHipsOptions() => new()
@@ -676,6 +684,12 @@ public sealed class AppServices : IAsyncDisposable
             Settings.AutoTerminateProcesses = status.AutoTerminateProcesses;
             Settings.AutoDeleteMaliciousP7b = status.AutoDeleteMaliciousP7b;
         }
+
+        if (status.SandboxSupported)
+        {
+            Settings.SandboxEnabled = status.SandboxEnabled;
+            Settings.SandboxAutoRemediate = status.SandboxAutoRemediate;
+        }
     }
 
     private ServiceConfiguration BuildServiceConfiguration() => new()
@@ -689,7 +703,11 @@ public sealed class AppServices : IAsyncDisposable
         IdleScanEnabled = Settings.IdleScanEnabled,
         IdleScanIdleMinutes = Settings.IdleScanIdleMinutes,
         AutoTerminateProcesses = Settings.AutoTerminateProcesses,
-        AutoDeleteMaliciousP7b = Settings.AutoDeleteMaliciousP7b
+        AutoDeleteMaliciousP7b = Settings.AutoDeleteMaliciousP7b,
+        FirewallAutoBlockEnabled = Settings.FirewallAutoBlockEnabled,
+        SandboxEnabled = Settings.SandboxEnabled,
+        SandboxAutoRemediate = Settings.SandboxAutoRemediate,
+        SandboxMaxRunSeconds = Settings.SandboxMaxRunSeconds
     };
 
     private async Task ApplyServiceConfigurationAsync()
@@ -732,7 +750,15 @@ public sealed class AppServices : IAsyncDisposable
                     var status = await _serviceClient.GetStatusAsync(token).ConfigureAwait(false);
                     if (status is not null)
                     {
-                        var next = $"{status.EventCount}|{status.HipsRunning}|{status.HipsEnabled}|{status.ScannedFiles}|{status.ThreatsFound}|{status.SignatureVersion}|{status.LastError}|{status.IdleScanActive}|{status.LastIdleScanAt}|{status.LastIdleScanFiles}";
+                        var next = $"{status.EventCount}|{status.HipsRunning}|{status.HipsEnabled}|{status.ScannedFiles}|{status.ThreatsFound}|{status.SignatureVersion}|{status.LastError}|{status.IdleScanActive}|{status.LastIdleScanAt}|{status.LastIdleScanFiles}"
+                                   + $"|{status.ActiveThreat?.IncidentId}|{status.ActiveThreat?.ProcessStillRunning}"
+                                   + $"|{status.Containment?.Active}|{status.Containment?.State}|{status.Containment?.Phase}"
+                                   + $"|{status.Containment?.FilesScanned}|{status.Containment?.ThreatsFound}"
+                                   + $"|{status.Containment?.GuardSweepKills}|{status.Containment?.ShutdownPending}"
+                                   + $"|{status.Containment?.LastError}|{status.Containment?.Actions.Count}"
+                                   + $"|{status.SandboxAvailable}|{status.SandboxQueueDepth}|{status.SandboxAnalyzing}"
+                                   + $"|{status.SandboxAnalyzed}|{status.SandboxMalicious}|{status.SandboxLastVerdict}"
+                                   + $"|{status.SandboxLastAt}|{status.SandboxLastError}";
                         _serviceStatus = status;
                         NotifyForNewServiceEvents(status);
                         if (!string.Equals(next, fingerprint, StringComparison.Ordinal))
@@ -787,6 +813,13 @@ public sealed class AppServices : IAsyncDisposable
             IdleScanIdleMinutes = Settings.IdleScanIdleMinutes,
             AutoTerminateProcesses = Settings.AutoTerminateProcesses,
             AutoDeleteMaliciousP7b = Settings.AutoDeleteMaliciousP7b,
+            FirewallAutoBlockEnabled = Settings.FirewallAutoBlockEnabled,
+            FirewallLastError = Settings.FirewallAutoBlockEnabled ? "需要 NDAS 防护服务才能写入 hosts 和防火墙规则。" : null,
+            SandboxSupported = false,
+            SandboxAvailable = false,
+            SandboxEnabled = Settings.SandboxEnabled,
+            SandboxAutoRemediate = Settings.SandboxAutoRemediate,
+            SandboxLastError = "高熵样本沙箱分析需要 NDAS 防护服务。",
             LastError = _hips.LastError,
             EventCount = _hips.EventCount,
             UpdatedAt = DateTimeOffset.UtcNow
@@ -815,6 +848,23 @@ public sealed class AppServices : IAsyncDisposable
                 continue;
             }
 
+            if (!Settings.NotificationsEnabled)
+            {
+                continue;
+            }
+
+            if (serviceEvent.RuleId.Equals("HIPS.SANDBOX.SUBMITTED", StringComparison.OrdinalIgnoreCase))
+            {
+                NotificationService.ShowWarning("正在沙箱分析", serviceEvent.Detail);
+                continue;
+            }
+
+            if (serviceEvent.RuleId.Equals("HIPS.SANDBOX.UNAVAILABLE", StringComparison.OrdinalIgnoreCase))
+            {
+                NotificationService.ShowWarning("沙箱组件不可用", serviceEvent.Detail);
+                continue;
+            }
+
             if (!IsThreatEvent(serviceEvent.RuleId, serviceEvent.Severity))
             {
                 continue;
@@ -833,19 +883,66 @@ public sealed class AppServices : IAsyncDisposable
         }
     }
 
+    private void OnScanJobCompleted(object? sender, ScanJob job)
+    {
+        try
+        {
+            if (!Settings.NotificationsEnabled || job.Summary is not { } summary)
+            {
+                return;
+            }
+
+            var threats = summary.Detections
+                .Where(detection => detection.Verdict is ThreatVerdict.Malicious or ThreatVerdict.Pua
+                    or ThreatVerdict.Attention)
+                .ToArray();
+            if (threats.Length == 0)
+            {
+                return;
+            }
+
+            var key = "scan:" + job.Id;
+            if (threats.Length == 1)
+            {
+                var threat = threats[0];
+                ThreatReminderService.Report(key,
+                    "扫描发现威胁：" + (threat.ThreatName ?? threat.VerdictText),
+                    $"{threat.FilePath}（评分 {threat.Score}）", handled: false);
+                return;
+            }
+
+            var names = string.Join("、", threats.Take(3).Select(threat => threat.FileName));
+            var suffix = threats.Length > 3 ? $" 等 {threats.Length} 个文件" : string.Empty;
+            ThreatReminderService.Report(key, $"扫描发现 {threats.Length} 个威胁", names + suffix,
+                handled: false);
+        }
+        catch
+        {
+            // Notification reporting must not affect scan bookkeeping.
+        }
+    }
+
     private static string ServiceEventKey(ServiceEvent serviceEvent) =>
         $"{serviceEvent.Timestamp:O}|{serviceEvent.RuleId}|{serviceEvent.Target}";
 
     private static bool IsThreatEvent(string ruleId, int severity)
     {
-        if (severity < (int)HipsSeverity.High)
+        if (ruleId.Equals("HIPS.IOC.P7B_TRUSTED", StringComparison.OrdinalIgnoreCase) ||
+            ruleId.Equals("HIPS.SANDBOX.SUBMITTED", StringComparison.OrdinalIgnoreCase) ||
+            ruleId.Equals("HIPS.SANDBOX.UNAVAILABLE", StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
 
+        if (ruleId.StartsWith("HIPS.SANDBOX.RESULT", StringComparison.OrdinalIgnoreCase))
+        {
+            return severity >= (int)HipsSeverity.Medium;
+        }
+
         return ruleId.StartsWith("HIPS.REALTIME", StringComparison.OrdinalIgnoreCase) ||
                ruleId.StartsWith("HIPS.IDLE", StringComparison.OrdinalIgnoreCase) ||
-               ruleId.StartsWith("HIPS.IOC", StringComparison.OrdinalIgnoreCase);
+               ruleId.StartsWith("HIPS.IOC", StringComparison.OrdinalIgnoreCase) ||
+               ruleId.StartsWith("HIPS.PROC", StringComparison.OrdinalIgnoreCase);
     }
 
     private static HipsEvent MapServiceEvent(ServiceEvent serviceEvent) => new(
@@ -858,6 +955,60 @@ public sealed class AppServices : IAsyncDisposable
         serviceEvent.CommandLine,
         serviceEvent.Target,
         serviceEvent.Blocked);
+
+    public async Task<ServiceContainmentStatus?> StartContainmentAsync(CancellationToken cancellationToken = default)
+    {
+        EnsureReady();
+        if (!_useService || _serviceClient is null)
+        {
+            throw new InvalidOperationException("高威胁强力清除需要 NDAS 防护服务（LocalSystem）。");
+        }
+
+        var status = await _serviceClient.StartContainmentAsync(cancellationToken).ConfigureAwait(false);
+        if (status is null)
+        {
+            throw new InvalidOperationException("无法连接 NDAS 防护服务。");
+        }
+
+        if (status.Containment is null)
+        {
+            throw new InvalidOperationException("NDAS 防护服务版本过旧，请升级服务后再使用强力清除。");
+        }
+
+        if (status.Containment is not { Active: true } && status.LastError is { Length: > 0 } error)
+        {
+            throw new InvalidOperationException(error);
+        }
+
+        _serviceStatus = status;
+        RaiseStateChanged();
+        return status.Containment;
+    }
+
+    public async Task<ServiceContainmentStatus?> AbortContainmentAsync(CancellationToken cancellationToken = default)
+    {
+        EnsureReady();
+        if (!_useService || _serviceClient is null)
+        {
+            throw new InvalidOperationException("取消强力清除需要 NDAS 防护服务。");
+        }
+
+        var status = await _serviceClient.AbortContainmentAsync(cancellationToken).ConfigureAwait(false);
+        if (status is null)
+        {
+            throw new InvalidOperationException("无法连接 NDAS 防护服务。");
+        }
+
+        if (status.Containment is { State: not ContainmentStates.Cancelled } &&
+            status.LastError is { Length: > 0 } error)
+        {
+            throw new InvalidOperationException(error);
+        }
+
+        _serviceStatus = status;
+        RaiseStateChanged();
+        return status.Containment;
+    }
 
     public async Task SetHipsEnabledAsync(bool enabled)
     {
@@ -1273,6 +1424,51 @@ public sealed class AppServices : IAsyncDisposable
         EnsureReady();
         EnsureElevatedSettings();
         Settings.AutoDeleteMaliciousP7b = enabled;
+
+        if (_useService)
+        {
+            await ApplyServiceConfigurationAsync().ConfigureAwait(false);
+        }
+
+        await SaveSettingsAsync().ConfigureAwait(false);
+        RaiseStateChanged();
+    }
+
+    public async Task SetFirewallAutoBlockAsync(bool enabled)
+    {
+        EnsureReady();
+        EnsureElevatedSettings();
+        Settings.FirewallAutoBlockEnabled = enabled;
+
+        if (_useService)
+        {
+            await ApplyServiceConfigurationAsync().ConfigureAwait(false);
+        }
+
+        await SaveSettingsAsync().ConfigureAwait(false);
+        RaiseStateChanged();
+    }
+
+    public async Task SetSandboxEnabledAsync(bool enabled)
+    {
+        EnsureReady();
+        EnsureElevatedSettings();
+        Settings.SandboxEnabled = enabled;
+
+        if (_useService)
+        {
+            await ApplyServiceConfigurationAsync().ConfigureAwait(false);
+        }
+
+        await SaveSettingsAsync().ConfigureAwait(false);
+        RaiseStateChanged();
+    }
+
+    public async Task SetSandboxAutoRemediateAsync(bool enabled)
+    {
+        EnsureReady();
+        EnsureElevatedSettings();
+        Settings.SandboxAutoRemediate = enabled;
 
         if (_useService)
         {

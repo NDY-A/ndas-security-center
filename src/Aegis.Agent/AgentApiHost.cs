@@ -6,6 +6,7 @@ using Aegis.Agent.Http;
 using Aegis.Core.Infrastructure;
 using Aegis.Core.Models;
 using Aegis.Core.Scanning;
+using Aegis.Core.Service;
 using Aegis.Hips;
 
 namespace Aegis.Agent;
@@ -22,6 +23,7 @@ public sealed class AgentApiHost : IAsyncDisposable
     private readonly Func<AegisScanner?> _scannerProvider;
     private readonly Func<ScanOptions> _scanOptionsProvider;
     private readonly HipsService? _hips;
+    private readonly Func<ServiceStatus?>? _serviceStatusProvider;
     private readonly object _lifecycleLock = new();
     private readonly object _keyLock = new();
     private AgentHttpServer? _server;
@@ -34,13 +36,15 @@ public sealed class AgentApiHost : IAsyncDisposable
         ScanCoordinator coordinator,
         Func<AegisScanner?> scannerProvider,
         Func<ScanOptions> scanOptionsProvider,
-        HipsService? hips = null)
+        HipsService? hips = null,
+        Func<ServiceStatus?>? serviceStatusProvider = null)
     {
         _options = options;
         _coordinator = coordinator;
         _scannerProvider = scannerProvider;
         _scanOptionsProvider = scanOptionsProvider;
         _hips = hips;
+        _serviceStatusProvider = serviceStatusProvider;
     }
 
     public bool IsRunning
@@ -419,6 +423,7 @@ public sealed class AgentApiHost : IAsyncDisposable
 
         var active = _coordinator.ActiveJob;
         var running = _coordinator.GetRunning();
+        var serviceStatus = GetServiceStatus();
         return new AgentHttpResponse(200, new
         {
             apiVersion = _options.ApiVersion,
@@ -459,8 +464,37 @@ public sealed class AgentApiHost : IAsyncDisposable
                 queuedOrRunning = running.Count,
                 queued = running.Count(job => job.State == ScanJobState.Queued),
                 running = running.Count(job => job.State == ScanJobState.Running)
+            },
+            sandbox = new
+            {
+                supported = serviceStatus?.SandboxSupported ?? false,
+                available = serviceStatus?.SandboxAvailable ?? false,
+                enabled = serviceStatus?.SandboxEnabled ?? false,
+                autoRemediate = serviceStatus?.SandboxAutoRemediate ?? false,
+                engineVersion = serviceStatus?.SandboxEngineVersion,
+                queueDepth = serviceStatus?.SandboxQueueDepth ?? 0,
+                analyzing = serviceStatus?.SandboxAnalyzing ?? false,
+                analyzed = serviceStatus?.SandboxAnalyzed ?? 0,
+                malicious = serviceStatus?.SandboxMalicious ?? 0,
+                lastVerdict = serviceStatus?.SandboxLastVerdict,
+                lastPath = serviceStatus?.SandboxLastPath,
+                lastScore = serviceStatus?.SandboxLastScore ?? 0,
+                lastAt = serviceStatus?.SandboxLastAt,
+                lastError = serviceStatus?.SandboxLastError
             }
         });
+    }
+
+    private ServiceStatus? GetServiceStatus()
+    {
+        try
+        {
+            return _serviceStatusProvider?.Invoke();
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private object ToJobEnvelope(ScanJob job, bool includeSummary)

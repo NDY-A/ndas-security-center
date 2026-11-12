@@ -27,6 +27,10 @@ public sealed class AppSettings
     public int IdleScanIdleMinutes { get; set; } = 10;
     public bool AutoTerminateProcesses { get; set; }
     public bool AutoDeleteMaliciousP7b { get; set; }
+    public bool FirewallAutoBlockEnabled { get; set; }
+    public bool SandboxEnabled { get; set; } = true;
+    public bool SandboxAutoRemediate { get; set; } = true;
+    public int SandboxMaxRunSeconds { get; set; } = 60;
     public bool NotificationsEnabled { get; set; } = true;
     public bool AutoStartEnabled { get; set; }
     public AppThemePreference Theme { get; set; } = AppThemePreference.System;

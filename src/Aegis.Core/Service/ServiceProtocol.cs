@@ -26,6 +26,11 @@ public sealed class ServiceConfiguration
     public int IdleScanIdleMinutes { get; set; } = 10;
     public bool AutoTerminateProcesses { get; set; }
     public bool AutoDeleteMaliciousP7b { get; set; }
+    public bool FirewallAutoBlockEnabled { get; set; }
+    public bool SandboxEnabled { get; set; } = true;
+    public bool SandboxAutoRemediate { get; set; } = true;
+    public bool SandboxAutoBlockNetwork { get; set; } = true;
+    public int SandboxMaxRunSeconds { get; set; } = 60;
 }
 
 public sealed class ServiceStatus
@@ -49,6 +54,24 @@ public sealed class ServiceStatus
     public long LastIdleScanThreats { get; set; }
     public bool AutoTerminateProcesses { get; set; }
     public bool AutoDeleteMaliciousP7b { get; set; }
+    public bool FirewallAutoBlockEnabled { get; set; }
+    public int FirewallBlockedDomains { get; set; }
+    public int FirewallBlockedIps { get; set; }
+    public string? FirewallLastError { get; set; }
+    public bool SandboxSupported { get; set; }
+    public bool SandboxAvailable { get; set; }
+    public bool SandboxEnabled { get; set; }
+    public bool SandboxAutoRemediate { get; set; }
+    public string? SandboxEngineVersion { get; set; }
+    public int SandboxQueueDepth { get; set; }
+    public bool SandboxAnalyzing { get; set; }
+    public long SandboxAnalyzed { get; set; }
+    public long SandboxMalicious { get; set; }
+    public string? SandboxLastVerdict { get; set; }
+    public string? SandboxLastPath { get; set; }
+    public long SandboxLastScore { get; set; }
+    public DateTimeOffset? SandboxLastAt { get; set; }
+    public string? SandboxLastError { get; set; }
     public string? LastError { get; set; }
     public int EventCount { get; set; }
     public long ScannedFiles { get; set; }
@@ -61,6 +84,54 @@ public sealed class ServiceStatus
     public List<ServiceUserProfile> Profiles { get; set; } = new();
     public List<string> WatchErrors { get; set; } = new();
     public List<ServiceBlockedFile> BlockedFiles { get; set; } = new();
+    public ServiceThreatIncident? ActiveThreat { get; set; }
+    public ServiceContainmentStatus? Containment { get; set; }
+}
+
+public sealed class ServiceThreatIncident
+{
+    public string IncidentId { get; set; } = string.Empty;
+    public DateTimeOffset DetectedAt { get; set; }
+    public int ProcessId { get; set; }
+    public string ProcessName { get; set; } = string.Empty;
+    public string ProcessPath { get; set; } = string.Empty;
+    public string ThreatName { get; set; } = string.Empty;
+    public string Evidence { get; set; } = string.Empty;
+    public string Source { get; set; } = string.Empty;
+    public bool ProcessStillRunning { get; set; }
+}
+
+public sealed class ServiceContainmentStatus
+{
+    public bool Active { get; set; }
+    public string State { get; set; } = ContainmentStates.Idle;
+    public DateTimeOffset? StartedAt { get; set; }
+    public DateTimeOffset? FinishedAt { get; set; }
+    public string Phase { get; set; } = string.Empty;
+    public long FilesScanned { get; set; }
+    public long ThreatsFound { get; set; }
+    public string? CurrentPath { get; set; }
+    public int TerminatedProcesses { get; set; }
+    public int GuardSweepKills { get; set; }
+    public long CriticalFilesScanned { get; set; }
+    public int ThreatsRemediated { get; set; }
+    public string? BootRepairResult { get; set; }
+    public string? LastError { get; set; }
+    public bool ShutdownPending { get; set; }
+    public List<string> Actions { get; set; } = new();
+}
+
+public static class ContainmentStates
+{
+    public const string Idle = "idle";
+    public const string Starting = "starting";
+    public const string Lockdown = "lockdown";
+    public const string Scanning = "scanning";
+    public const string RepairingBoot = "repairingBoot";
+    public const string ShuttingDown = "shuttingDown";
+    public const string Completed = "completed";
+    public const string Failed = "failed";
+    public const string Cancelled = "cancelled";
 }
 
 public sealed class ServiceBlockedFile

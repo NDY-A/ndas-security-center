@@ -41,7 +41,7 @@ HIPS 为 `src/Aegis.Hips`。
 
 ## 安装与卸载
 
-从 [Releases](../../releases) 下载 `NDAS-rs_p0.0.2.0a-win-x64.msi`，右键以管理员
+从 [Releases](../../releases) 下载 `NDAS-rs_p0.0.5.0a-win-x64.msi`，右键以管理员
 安装。未签名包会触发 SmartScreen，请确认来源后继续。卸载可在“应用和功能”中完成；
 卸载服务前请先在程序设置中关闭实时防护/退出托盘进程。
 

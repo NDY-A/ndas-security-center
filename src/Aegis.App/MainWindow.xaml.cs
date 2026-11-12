@@ -252,6 +252,12 @@ public sealed partial class MainWindow : Window
 
     public void ApplyStartupMode()
     {
+        if (App.PostRemediationScanPending)
+        {
+            ShowFromTray();
+            return;
+        }
+
         if (!Environment.GetCommandLineArgs().Any(argument =>
                 string.Equals(argument, "--background", StringComparison.OrdinalIgnoreCase)))
         {
@@ -265,6 +271,7 @@ public sealed partial class MainWindow : Window
     {
         _trayIcon?.Dispose();
         _trayIcon = null;
+        App.ShutdownSingleInstance();
         _ = DisposeServicesAsync();
     }
 

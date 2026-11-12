@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <RootNamespace>Aegis.Sandbox</RootNamespace>
+    <AssemblyName>Aegis.Sandbox</AssemblyName>
+    <Description>NDAS built-in Speakeasy sandbox orchestration and report scoring.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Aegis.Core\Aegis.Core.csproj" />
+  </ItemGroup>
+</Project>

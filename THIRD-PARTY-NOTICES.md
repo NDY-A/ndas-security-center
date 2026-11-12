@@ -14,6 +14,24 @@ bundles the following third-party components:
 | System.IO.FileSystem.AccessControl | MIT | File ACL blockade |
 | System.Security.Cryptography.Pkcs | MIT | PKCS#7 policy inspection |
 
+## Built-in sandbox (installed under `Program Files\NDAS\Sandbox`)
+
+| Component | License | Notes |
+| --- | --- | --- |
+| Speakeasy (Mandiant) | MIT | User-mode PE emulator used for dynamic behavior analysis |
+| Python (embeddable) | PSF License | Runtime that hosts Speakeasy |
+| Unicorn Engine | GPL-2.0 | CPU emulation core; distributed as the PyPI win_amd64 wheel, source at https://github.com/unicorn-engine/unicorn |
+| Capstone Engine | BSD 3-Clause | Disassembly engine |
+| pefile | MIT | PE parsing |
+| pycryptodome | BSD 2-Clause | Cryptographic primitives |
+| lznt1 | MIT | LZNT1 decompression |
+| jsonschema | MIT | Report validation |
+
+Full license texts are copied into `Sandbox\LICENSES` by
+`installer/prepare-sandbox.ps1`. The sandbox emulator never executes the
+sample natively; it runs inside a job object with a low-integrity token when
+available and an outbound firewall block for its Python executable.
+
 ## Detection content
 
 - `data/seed/yara/rules.yar` is derived from

@@ -15,6 +15,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <Grid Grid.Row="0">
@@ -71,7 +72,49 @@
                 </Grid>
             </Border>
 
-            <Grid Grid.Row="2" ColumnSpacing="16">
+            <Border x:Name="ContainmentCard" Grid.Row="2" Visibility="Collapsed"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="#C42B1C" BorderThickness="1" CornerRadius="12" Padding="20">
+                <StackPanel Spacing="12">
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Spacing="6">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Border Background="#FDE7E9" CornerRadius="999" Padding="9,3" VerticalAlignment="Center">
+                                    <TextBlock Text="活动威胁" FontSize="11" FontWeight="SemiBold" Foreground="#8A1C10" />
+                                </Border>
+                                <TextBlock x:Name="ThreatTitleText" Text="检测到活动恶意软件"
+                                           FontWeight="SemiBold" FontSize="16" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock x:Name="ThreatDetailText" Text="正在读取威胁信息…"
+                                       Style="{StaticResource AegisCaptionStyle}" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
+                            <Button x:Name="ContainmentButton" Content="启动高威胁强力清除"
+                                    Click="StartContainment_Click" Background="#C42B1C" Foreground="White"
+                                    Padding="16,8" CornerRadius="6" />
+                            <Button x:Name="AbortContainmentButton" Content="取消清除"
+                                    Click="AbortContainment_Click" Padding="12,6" Visibility="Collapsed" />
+                        </StackPanel>
+                    </Grid>
+
+                    <StackPanel x:Name="ContainmentProgressPanel" Spacing="6" Visibility="Collapsed">
+                        <TextBlock x:Name="ContainmentPhaseText" Text="准备中…" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <ProgressBar x:Name="ContainmentProgressBar" IsIndeterminate="True" />
+                        <TextBlock x:Name="ContainmentMetricsText" Style="{StaticResource AegisCaptionStyle}" TextWrapping="Wrap" />
+                        <TextBlock x:Name="ContainmentActionText" Style="{StaticResource AegisCaptionStyle}" TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <TextBlock x:Name="ContainmentHintText"
+                               Text="强力清除只针对正在运行的活动恶意软件。执行时会关闭当前会话中所有非系统必需进程（未保存的工作会丢失），持续清扫新进程，扫描系统关键位置，备份并修复一次引导，完成后强制关机；下次登录会自动打开 NDAS 并快速扫描。"
+                               Style="{StaticResource AegisCaptionStyle}" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+
+            <Grid Grid.Row="3" ColumnSpacing="16">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="*" />
@@ -121,7 +164,7 @@
                 </Border>
             </Grid>
 
-            <Border x:Name="ScanCard" Grid.Row="3" Style="{StaticResource AegisCardStyle}">
+            <Border x:Name="ScanCard" Grid.Row="4" Style="{StaticResource AegisCardStyle}">
                 <StackPanel Spacing="14">
                     <StackPanel Spacing="2">
                         <TextBlock Text="扫描" Style="{StaticResource AegisSectionTitleStyle}" />
@@ -174,7 +217,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Grid.Row="4" Style="{StaticResource AegisCardStyle}">
+            <Border Grid.Row="5" Style="{StaticResource AegisCardStyle}">
                 <StackPanel Spacing="12">
                     <StackPanel Spacing="2">
                         <TextBlock Text="扫描结果" Style="{StaticResource AegisSectionTitleStyle}" />

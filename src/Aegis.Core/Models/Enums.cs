@@ -27,7 +27,8 @@ public enum DetectionSource
     Cloud,
     BuiltInTest,
     Yara,
-    PathIoc
+    PathIoc,
+    Sandbox
 }
 
 public enum FileKind

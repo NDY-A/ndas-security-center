@@ -94,16 +94,18 @@ public sealed class AegisScanner
                 Evidence = "EICAR-STANDARD-ANTIVIRUS-TEST-FILE"
             });
         }
-        else if (Signatures.TryMatchHash(hashed.Sha256, out var knownSignature) && knownSignature is not null)
+        else if (Signatures.TryMatchHash(hashed.Sha256, hashed.Md5, out var knownSignature) && knownSignature is not null)
         {
+            var matchedByMd5 = !Signatures.Hashes.ContainsKey(hashed.Sha256);
+            var matchedAlgorithm = matchedByMd5 ? "MD5" : "SHA-256";
             var signatureName = knownSignature.ThreatName ?? "Signature/NDY-A.Blocklist";
             detections.Add(new Detection
             {
                 RuleId = "Sig.NDY-A.Blocklist",
                 Name = signatureName,
                 Description = knownSignature.ThreatName is { Length: > 0 }
-                    ? $"SHA-256 命中 NDY-A https://github.com/NDY-A/malware-egress-blocklist 定义：{knownSignature.ThreatName}。"
-                    : "SHA-256 命中 NDY-A malware-egress-blocklist 的已知恶意样本。",
+                    ? $"{matchedAlgorithm} 命中 NDY-A https://github.com/NDY-A/malware-egress-blocklist 定义：{knownSignature.ThreatName}。"
+                    : $"{matchedAlgorithm} 命中 NDY-A malware-egress-blocklist 的已知恶意样本。",
                 Score = 100,
                 Severity = ThreatSeverity.Critical,
                 Source = DetectionSource.Hash,
@@ -260,7 +262,8 @@ public sealed class AegisScanner
         var header = new byte[HeaderBytes];
         var headerRead = 0;
         var buffer = new byte[1024 * 1024];
-        using var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        using var sha256Hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        using var md5Hasher = IncrementalHash.CreateHash(HashAlgorithmName.MD5);
         while (true)
         {
             var read = await stream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
@@ -269,7 +272,8 @@ public sealed class AegisScanner
                 break;
             }
 
-            hasher.AppendData(buffer, 0, read);
+            sha256Hasher.AppendData(buffer, 0, read);
+            md5Hasher.AppendData(buffer, 0, read);
             if (headerRead < header.Length)
             {
                 var copy = Math.Min(read, header.Length - headerRead);
@@ -278,8 +282,9 @@ public sealed class AegisScanner
             }
         }
 
-        var hash = Convert.ToHexString(hasher.GetHashAndReset()).ToLowerInvariant();
-        return new HashedFile(hash, size, header.AsSpan(0, headerRead).ToArray());
+        var sha256 = Convert.ToHexString(sha256Hasher.GetHashAndReset()).ToLowerInvariant();
+        var md5 = Convert.ToHexString(md5Hasher.GetHashAndReset()).ToLowerInvariant();
+        return new HashedFile(sha256, md5, size, header.AsSpan(0, headerRead).ToArray());
     }
 
     private static FileScanResult SkippedResult(string path, long size, string reason, TimeSpan duration)
@@ -316,5 +321,5 @@ public sealed class AegisScanner
         _ => bytes + " B"
     };
 
-    private sealed record HashedFile(string Sha256, long Size, byte[] Header);
+    private sealed record HashedFile(string Sha256, string Md5, long Size, byte[] Header);
 }

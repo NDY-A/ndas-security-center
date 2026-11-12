@@ -18,6 +18,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <StackPanel Grid.Row="0" Spacing="4">
@@ -127,6 +128,16 @@
                             </StackPanel>
                         </ToggleSwitch.Header>
                     </ToggleSwitch>
+                    <ToggleSwitch x:Name="FirewallBlockToggle" OffContent="关" OnContent="开"
+                                  Toggled="FirewallBlockToggle_Toggled">
+                        <ToggleSwitch.Header>
+                            <StackPanel Spacing="3">
+                                <TextBlock Text="恶意网络指标自动封禁" FontWeight="SemiBold" />
+                                <TextBlock Text="扫描发现恶意域名或 IP 时，由防护服务直接把域名写入 hosts（回环），并创建 NDAS-IOC-* 防火墙双向阻断规则；只回收自己创建的条目。默认关闭。"
+                                           Style="{StaticResource AegisCaptionStyle}" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </ToggleSwitch.Header>
+                    </ToggleSwitch>
                     <ToggleSwitch x:Name="NotificationsToggle" OffContent="关" OnContent="开"
                                   Toggled="NotificationsToggle_Toggled">
                         <ToggleSwitch.Header>
@@ -139,12 +150,41 @@
                     </ToggleSwitch>
                     <TextBlock x:Name="IdleScanStatusText" Text="—" Style="{StaticResource AegisCaptionStyle}" />
                     <InfoBar x:Name="RealtimeInfo" IsOpen="False" IsClosable="True" />
-                    <TextBlock Text="实时防护会扫描新启动的程序和当前活动的用户程序；注入/侧载与注册表阻断是用户态启发式，不是内核驱动。闲时扫描与 p7b 处理由 LocalSystem 防护服务执行。"
+                    <TextBlock Text="实时防护会扫描新启动的程序和当前活动的用户程序；注入/侧载与注册表阻断是用户态启发式，不是内核驱动。闲时扫描、p7b 处理与网络 IOC 封禁由 LocalSystem 防护服务执行。"
                                Style="{StaticResource AegisCaptionStyle}" />
                 </StackPanel>
             </Border>
 
             <Border Grid.Row="2" Style="{StaticResource AegisCardStyle}">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="高熵样本沙箱分析" Style="{StaticResource AegisSectionTitleStyle}" />
+                    <ToggleSwitch x:Name="SandboxToggle" OffContent="关" OnContent="开"
+                                  Toggled="SandboxToggle_Toggled">
+                        <ToggleSwitch.Header>
+                            <StackPanel Spacing="3">
+                                <TextBlock Text="高熵未知样本自动沙箱分析" FontWeight="SemiBold" />
+                                <TextBlock Text="实时/闲时扫描发现没有强证据的高熵加壳 PE（以及 ZIP 内的高熵 PE）时，交给内置 Speakeasy 模拟器分析行为；样本不会真实运行，模拟器以低权限和作业对象限制运行。默认开启。"
+                                           Style="{StaticResource AegisCaptionStyle}" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </ToggleSwitch.Header>
+                    </ToggleSwitch>
+                    <ToggleSwitch x:Name="SandboxRemediateToggle" OffContent="关" OnContent="开"
+                                  Toggled="SandboxRemediateToggle_Toggled">
+                        <ToggleSwitch.Header>
+                            <StackPanel Spacing="3">
+                                <TextBlock Text="沙箱判定恶意后自动处置" FontWeight="SemiBold" />
+                                <TextBlock Text="沙箱评分 ≥85 且命中多类高置信信号时，自动锁定样本（压缩包内样本则锁定外层文件）、终止仍存活的关联进程，并封禁报告中命中的已知恶意域名/IP。"
+                                           Style="{StaticResource AegisCaptionStyle}" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </ToggleSwitch.Header>
+                    </ToggleSwitch>
+                    <TextBlock x:Name="SandboxStatusText" Text="沙箱分析：—"
+                               Style="{StaticResource AegisCaptionStyle}" TextWrapping="Wrap" />
+                    <InfoBar x:Name="SandboxInfo" IsOpen="False" IsClosable="True" />
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Row="3" Style="{StaticResource AegisCardStyle}">
                 <StackPanel Spacing="12">
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -196,7 +236,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Grid.Row="3" Style="{StaticResource AegisCardStyle}">
+            <Border Grid.Row="4" Style="{StaticResource AegisCardStyle}">
                 <StackPanel Spacing="12">
                     <TextBlock Text="扫描与排除项" Style="{StaticResource AegisSectionTitleStyle}" />
                     <StackPanel Spacing="4">
@@ -228,7 +268,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Grid.Row="4" Style="{StaticResource AegisCardStyle}">
+            <Border Grid.Row="5" Style="{StaticResource AegisCardStyle}">
                 <StackPanel Spacing="12">
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -277,7 +317,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Grid.Row="5" Style="{StaticResource AegisCardStyle}">
+            <Border Grid.Row="6" Style="{StaticResource AegisCardStyle}">
                 <StackPanel Spacing="8">
                     <TextBlock Text="外观与数据" Style="{StaticResource AegisSectionTitleStyle}" />
                     <ComboBox x:Name="ThemeBox" Header="主题" SelectedIndex="0" HorizontalAlignment="Stretch"
@@ -293,7 +333,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Grid.Row="6" Style="{StaticResource AegisCardStyle}">
+            <Border Grid.Row="7" Style="{StaticResource AegisCardStyle}">
                 <StackPanel Spacing="8">
                     <TextBlock Text="启动" Style="{StaticResource AegisSectionTitleStyle}" />
                     <ToggleSwitch x:Name="AutoStartToggle" OffContent="关" OnContent="开"
@@ -311,7 +351,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Grid.Row="7" Style="{StaticResource AegisCardStyle}">
+            <Border Grid.Row="8" Style="{StaticResource AegisCardStyle}">
                 <StackPanel Spacing="12">
                     <TextBlock Text="最近主动防护事件" Style="{StaticResource AegisSectionTitleStyle}" />
                     <ListView x:Name="EventList" SelectionMode="None" MaxHeight="380" Visibility="Collapsed">

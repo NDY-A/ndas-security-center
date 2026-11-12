@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO.Pipes;
 using System.Runtime.InteropServices;
 using System.Security.AccessControl;
@@ -132,6 +133,45 @@ public sealed class IpcServer
                             status = _host.GetStatus();
                         }
                     }
+                    else if (request?.Command.Equals("contain", StringComparison.OrdinalIgnoreCase) == true)
+                    {
+                        if (!ClientIsElevated(pipe))
+                        {
+                            status = _host.GetStatus();
+                            status.LastError = "启动强力清除需要管理员权限。";
+                        }
+                        else if (!TryGetClientSession(pipe, out var sessionId))
+                        {
+                            status = _host.GetStatus();
+                            status.LastError = "无法识别发起强力清除的交互会话。";
+                        }
+                        else if (!_host.StartContainment(sessionId, out var error))
+                        {
+                            status = _host.GetStatus();
+                            status.LastError = error;
+                        }
+                        else
+                        {
+                            status = _host.GetStatus();
+                        }
+                    }
+                    else if (request?.Command.Equals("contain-abort", StringComparison.OrdinalIgnoreCase) == true)
+                    {
+                        if (!ClientIsElevated(pipe))
+                        {
+                            status = _host.GetStatus();
+                            status.LastError = "取消强力清除需要管理员权限。";
+                        }
+                        else if (!_host.AbortContainment(out var error))
+                        {
+                            status = _host.GetStatus();
+                            status.LastError = error;
+                        }
+                        else
+                        {
+                            status = _host.GetStatus();
+                        }
+                    }
                     else if (request?.Command.Equals("configure", StringComparison.OrdinalIgnoreCase) == true)
                     {
                         if (request.Settings is null)
@@ -165,6 +205,26 @@ public sealed class IpcServer
             {
                 // A client disconnect must not affect other clients.
             }
+        }
+    }
+
+    private static bool TryGetClientSession(NamedPipeServerStream pipe, out int sessionId)
+    {
+        sessionId = -1;
+        try
+        {
+            if (!GetNamedPipeClientProcessId(pipe.SafePipeHandle, out var processId))
+            {
+                return false;
+            }
+
+            using var process = Process.GetProcessById((int)processId);
+            sessionId = process.SessionId;
+            return sessionId > 0;
+        }
+        catch
+        {
+            return false;
         }
     }
 

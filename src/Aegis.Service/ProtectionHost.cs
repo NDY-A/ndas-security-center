@@ -1,12 +1,15 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Threading.Channels;
 using Aegis.Core.Infrastructure;
 using Aegis.Core.Models;
+using Aegis.Core.Network;
 using Aegis.Core.Remediation;
 using Aegis.Core.Scanning;
 using Aegis.Core.Service;
 using Aegis.Core.Signatures;
 using Aegis.Hips;
+using Aegis.Sandbox;
 
 namespace Aegis.Service;
 
@@ -15,7 +18,9 @@ public sealed class ProtectionHost : IDisposable
     private readonly CancellationTokenSource _cancellation = new();
     private readonly object _scannerLock = new();
     private readonly ConcurrentDictionary<string, DateTimeOffset> _recentScans = new(StringComparer.OrdinalIgnoreCase);
+    private readonly object _threatLock = new();
     private readonly string? _explicitSeed;
+    private ServiceThreatIncident? _activeThreat;
     private ServiceSettings _settings = new();
     private SignatureSnapshot? _snapshot;
     private AegisScanner? _scanner;
@@ -23,9 +28,12 @@ public sealed class ProtectionHost : IDisposable
     private IReadOnlyList<string> _exclusions = Array.Empty<string>();
     private HipsService? _hips;
     private FileBlocker? _blocker;
+    private NetworkIocBlocker? _networkBlocker;
     private RealtimeFileMonitor? _fileMonitor;
     private SpecialPathProbe? _specialPathProbe;
     private IdleScanService? _idleScan;
+    private ContainmentService? _containment;
+    private SandboxCoordinator? _sandbox;
     private Channel<ScanWorkItem>? _queue;
     private Task? _workers;
     private IpcServer? _ipc;
@@ -46,6 +54,16 @@ public sealed class ProtectionHost : IDisposable
         Directory.CreateDirectory(ServicePaths.LogsRoot);
         _blocker = new FileBlocker(ServicePaths.DataRoot);
         _settings = ServiceSettings.Load(ServicePaths.SettingsFile);
+        _networkBlocker = new NetworkIocBlocker(ServicePaths.DataRoot);
+        try
+        {
+            _networkBlocker.Restore(_settings.FirewallAutoBlockEnabled);
+        }
+        catch (Exception exception)
+        {
+            _lastError = "网络 IOC 封禁初始化失败：" + exception.Message;
+        }
+
         _exclusions = BuildExclusions();
         _scanOptions = new ScanOptions
         {
@@ -71,7 +89,25 @@ public sealed class ProtectionHost : IDisposable
 
         _hips = new HipsService();
         _hips.ProcessObserved += OnProcessObserved;
+        _hips.EventRaised += OnHipsEventForThreat;
         ApplyHipsState();
+
+        _containment = new ContainmentService(
+            ScanForContainmentAsync,
+            (path, reason) => _blocker?.Block(path, reason),
+            _exclusions,
+            hipsEvent => _hips?.ReportEvent(hipsEvent));
+
+        _sandbox = new SandboxCoordinator(
+            Path.Combine(ServicePaths.DataRoot, "Sandbox"),
+            () => Volatile.Read(ref _snapshot),
+            BuildSandboxOptions,
+            LockFileFromSandbox,
+            BlockNetworkFromSandbox,
+            (pid, path, threat, source, score) => RecordActiveThreat(pid, path, threat, source, score),
+            hipsEvent => _hips?.ReportEvent(hipsEvent),
+            () => _exclusions);
+        _sandbox.Start();
 
         _fileMonitor = new RealtimeFileMonitor(path => Enqueue(path, null));
 
@@ -104,6 +140,15 @@ public sealed class ProtectionHost : IDisposable
 
         _disposed = true;
         _cancellation.Cancel();
+        _sandbox?.Dispose();
+        _sandbox = null;
+        _containment?.Dispose();
+        _containment = null;
+        if (_hips is not null)
+        {
+            _hips.EventRaised -= OnHipsEventForThreat;
+        }
+
         _specialPathProbe?.Dispose();
         _specialPathProbe = null;
         _idleScan?.Dispose();
@@ -146,6 +191,7 @@ public sealed class ProtectionHost : IDisposable
     {
         var recent = _hips?.GetRecent(100).Select(MapEvent).ToList() ?? new List<ServiceEvent>();
         var snapshot = Volatile.Read(ref _snapshot);
+        var sandbox = _sandbox?.GetStatus();
         return new ServiceStatus
         {
             ServiceRunning = !_disposed,
@@ -167,6 +213,24 @@ public sealed class ProtectionHost : IDisposable
             LastIdleScanThreats = _idleScan?.LastScanThreats ?? 0,
             AutoTerminateProcesses = _settings.AutoTerminateProcesses,
             AutoDeleteMaliciousP7b = _settings.AutoDeleteMaliciousP7b,
+            FirewallAutoBlockEnabled = _settings.FirewallAutoBlockEnabled,
+            FirewallBlockedDomains = _networkBlocker?.DomainCount ?? 0,
+            FirewallBlockedIps = _networkBlocker?.IpCount ?? 0,
+            FirewallLastError = _networkBlocker?.LastError,
+            SandboxSupported = sandbox?.Supported ?? false,
+            SandboxAvailable = sandbox?.Available ?? false,
+            SandboxEnabled = _settings.SandboxEnabled,
+            SandboxAutoRemediate = _settings.SandboxAutoRemediate,
+            SandboxEngineVersion = sandbox?.EngineVersion,
+            SandboxQueueDepth = sandbox?.QueueDepth ?? 0,
+            SandboxAnalyzing = sandbox?.Analyzing ?? false,
+            SandboxAnalyzed = sandbox?.Analyzed ?? 0,
+            SandboxMalicious = sandbox?.Malicious ?? 0,
+            SandboxLastVerdict = sandbox?.LastVerdict,
+            SandboxLastPath = sandbox?.LastPath,
+            SandboxLastScore = sandbox?.LastScore ?? 0,
+            SandboxLastAt = sandbox?.LastAt,
+            SandboxLastError = sandbox?.LastError,
             LastError = _hips?.LastError ?? _lastError,
             EventCount = _hips?.EventCount ?? 0,
             ScannedFiles = Interlocked.Read(ref _scannedFiles),
@@ -186,8 +250,63 @@ public sealed class ProtectionHost : IDisposable
                     Downloads = profile.Downloads
                 })
                 .ToList(),
-            BlockedFiles = _blocker?.Snapshot().ToList() ?? new List<ServiceBlockedFile>()
+            BlockedFiles = _blocker?.Snapshot().ToList() ?? new List<ServiceBlockedFile>(),
+            ActiveThreat = GetActiveThreat(),
+            Containment = _containment?.GetStatus()
         };
+    }
+
+    private ServiceThreatIncident? GetActiveThreat()
+    {
+        lock (_threatLock)
+        {
+            if (_activeThreat is null)
+            {
+                return null;
+            }
+
+            return new ServiceThreatIncident
+            {
+                IncidentId = _activeThreat.IncidentId,
+                DetectedAt = _activeThreat.DetectedAt,
+                ProcessId = _activeThreat.ProcessId,
+                ProcessName = _activeThreat.ProcessName,
+                ProcessPath = _activeThreat.ProcessPath,
+                ThreatName = _activeThreat.ThreatName,
+                Evidence = _activeThreat.Evidence,
+                Source = _activeThreat.Source,
+                ProcessStillRunning = IsProcessRunningFrom(_activeThreat.ProcessId, _activeThreat.ProcessPath)
+            };
+        }
+    }
+
+    public bool StartContainment(int clientSessionId, out string error)
+    {
+        var incident = GetActiveThreat();
+        if (incident is null || !incident.ProcessStillRunning)
+        {
+            error = "当前没有正在运行的活动恶意软件，已拒绝启动强力清除。";
+            return false;
+        }
+
+        if (_containment is null)
+        {
+            error = "强力清除组件未初始化。";
+            return false;
+        }
+
+        return _containment.Start(incident, clientSessionId, out error);
+    }
+
+    public bool AbortContainment(out string message)
+    {
+        if (_containment is null)
+        {
+            message = "强力清除组件未初始化。";
+            return false;
+        }
+
+        return _containment.Abort(out message);
     }
 
     public ServiceBlockedFile? Block(string path, string reason = "manual") => _blocker?.Block(path, reason);
@@ -207,7 +326,20 @@ public sealed class ProtectionHost : IDisposable
         }
 
         ApplyHipsState();
+        ApplyNetworkBlockState();
         return GetStatus();
+    }
+
+    private void ApplyNetworkBlockState()
+    {
+        try
+        {
+            _networkBlocker?.Restore(_settings.FirewallAutoBlockEnabled);
+        }
+        catch (Exception exception)
+        {
+            _lastError = "应用网络 IOC 封禁设置失败：" + exception.Message;
+        }
     }
 
     private void ApplyHipsState()
@@ -261,7 +393,160 @@ public sealed class ProtectionHost : IDisposable
 
         if (!string.IsNullOrWhiteSpace(observation.ProcessPath))
         {
-            Enqueue(observation.ProcessPath, observation.ProcessId);
+            DateTime? started = null;
+            try
+            {
+                using var process = Process.GetProcessById(observation.ProcessId);
+                started = process.StartTime;
+            }
+            catch
+            {
+                // Protected or already exited processes keep an unknown start time.
+            }
+
+            Enqueue(observation.ProcessPath, observation.ProcessId, started);
+        }
+    }
+
+    private void OnHipsEventForThreat(object? sender, HipsEvent hipsEvent)
+    {
+        if (_disposed || hipsEvent.Severity < HipsSeverity.Critical)
+        {
+            return;
+        }
+
+        if (hipsEvent.RuleId is not ("HIPS.PROC.TOOL" or "HIPS.PROC.MODULE") ||
+            string.IsNullOrWhiteSpace(hipsEvent.ProcessPath))
+        {
+            return;
+        }
+
+        int pid;
+        if (hipsEvent.RuleId == "HIPS.PROC.MODULE")
+        {
+            pid = FindProcessIdByImage(hipsEvent.ProcessPath);
+        }
+        else if (!int.TryParse(hipsEvent.Target, out pid))
+        {
+            return;
+        }
+
+        if (pid > 0)
+        {
+            RecordActiveThreat(pid, hipsEvent.ProcessPath, hipsEvent.Title, hipsEvent.RuleId, 0);
+        }
+    }
+
+    private void RecordActiveThreat(int pid, string path, string threatName, string source, int score)
+    {
+        if (!IsProcessRunningFrom(pid, path))
+        {
+            return;
+        }
+
+        lock (_threatLock)
+        {
+            if (_activeThreat is not null &&
+                _activeThreat.ProcessId == pid &&
+                string.Equals(_activeThreat.ProcessPath, path, StringComparison.OrdinalIgnoreCase))
+            {
+                _activeThreat.ThreatName = threatName;
+                _activeThreat.Evidence = score > 0
+                    ? $"{source} 判定为恶意（评分 {score}），进程正在运行"
+                    : $"{source} 命中高危规则，进程正在运行";
+                return;
+            }
+
+            _activeThreat = new ServiceThreatIncident
+            {
+                IncidentId = $"{pid}-{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}",
+                DetectedAt = DateTimeOffset.Now,
+                ProcessId = pid,
+                ProcessName = Path.GetFileNameWithoutExtension(path),
+                ProcessPath = path,
+                ThreatName = threatName,
+                Evidence = score > 0
+                    ? $"{source} 判定为恶意（评分 {score}），进程正在运行"
+                    : $"{source} 命中高危规则，进程正在运行",
+                Source = source,
+                ProcessStillRunning = true
+            };
+        }
+    }
+
+    private static bool IsProcessRunningFrom(int pid, string path)
+    {
+        if (pid <= 0 || string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var process = Process.GetProcessById(pid);
+            var image = process.MainModule?.FileName;
+            return !string.IsNullOrWhiteSpace(image) &&
+                   string.Equals(Path.GetFullPath(image), Path.GetFullPath(path),
+                       StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static int FindProcessIdByImage(string path)
+    {
+        try
+        {
+            var target = Path.GetFullPath(path);
+            foreach (var process in Process.GetProcesses())
+            {
+                using (process)
+                {
+                    try
+                    {
+                        var image = process.MainModule?.FileName;
+                        if (!string.IsNullOrWhiteSpace(image) &&
+                            string.Equals(Path.GetFullPath(image), target, StringComparison.OrdinalIgnoreCase))
+                        {
+                            return process.Id;
+                        }
+                    }
+                    catch
+                    {
+                        // Protected processes deny module access.
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Enumeration is best-effort.
+        }
+
+        return -1;
+    }
+
+    private async Task<FileScanResult?> ScanForContainmentAsync(string path, CancellationToken cancellationToken)
+    {
+        var scanner = Volatile.Read(ref _scanner);
+        if (scanner is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return await scanner.ScanFileAsync(path, _scanOptions, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            return null;
         }
     }
 
@@ -351,10 +636,10 @@ public sealed class ProtectionHost : IDisposable
         }
 
         _recentScans[path] = now;
-        _queue?.Writer.TryWrite(new ScanWorkItem(path, null));
+        _queue?.Writer.TryWrite(new ScanWorkItem(path, null, null));
     }
 
-    private void Enqueue(string path, int? processId)
+    private void Enqueue(string path, int? processId, DateTime? processStartTime = null)
     {
         if (_disposed || !_settings.RealtimeProtectionEnabled || string.IsNullOrWhiteSpace(path))
         {
@@ -373,7 +658,7 @@ public sealed class ProtectionHost : IDisposable
         }
 
         _recentScans[path] = now;
-        _queue?.Writer.TryWrite(new ScanWorkItem(path, processId));
+        _queue?.Writer.TryWrite(new ScanWorkItem(path, processId, processStartTime));
     }
 
     private bool ShouldScan(string path)
@@ -413,7 +698,8 @@ public sealed class ProtectionHost : IDisposable
         {
             await foreach (var item in queue.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
             {
-                await AnalyzeAndHandleAsync(item.Path, item.ProcessId, "HIPS.REALTIME.SCAN", cancellationToken)
+                await AnalyzeAndHandleAsync(item.Path, item.ProcessId, item.ProcessStartTime,
+                        "HIPS.REALTIME.SCAN", cancellationToken)
                     .ConfigureAwait(false);
             }
         }
@@ -426,7 +712,8 @@ public sealed class ProtectionHost : IDisposable
     private async Task<bool> ScanIdleFileAsync(string path, CancellationToken cancellationToken)
     {
         var systemSoftware = IsSystemSoftwarePath(path);
-        var result = await AnalyzeAndHandleAsync(path, null, "HIPS.IDLE.SCAN", cancellationToken, systemSoftware)
+        var result = await AnalyzeAndHandleAsync(path, null, null, "HIPS.IDLE.SCAN", cancellationToken,
+                systemSoftware)
             .ConfigureAwait(false);
         if (result?.Verdict is not (ThreatVerdict.Malicious or ThreatVerdict.Pua))
         {
@@ -436,8 +723,9 @@ public sealed class ProtectionHost : IDisposable
         return !systemSoftware || HasDecisiveEvidence(result);
     }
 
-    private async Task<FileScanResult?> AnalyzeAndHandleAsync(string path, int? processId, string ruleId,
-        CancellationToken cancellationToken, bool requireDecisiveEvidence = false)
+    private async Task<FileScanResult?> AnalyzeAndHandleAsync(string path, int? processId,
+        DateTime? processStartTime, string ruleId, CancellationToken cancellationToken,
+        bool requireDecisiveEvidence = false)
     {
         if (!await WaitForStableAsync(path, cancellationToken).ConfigureAwait(false))
         {
@@ -454,6 +742,15 @@ public sealed class ProtectionHost : IDisposable
         {
             var result = await scanner.ScanFileAsync(path, _scanOptions, cancellationToken).ConfigureAwait(false);
             Interlocked.Increment(ref _scannedFiles);
+            try
+            {
+                _sandbox?.MaybeSubmit(result, processId, processStartTime, ruleId, requireDecisiveEvidence);
+            }
+            catch
+            {
+                // Sandbox submission is best-effort and must not break scanning.
+            }
+
             if (result.Verdict is not (ThreatVerdict.Malicious or ThreatVerdict.Pua))
             {
                 return result;
@@ -465,6 +762,16 @@ public sealed class ProtectionHost : IDisposable
             }
 
             Interlocked.Increment(ref _threatsFound);
+            var networkBlocked = 0;
+            if (result.Verdict == ThreatVerdict.Malicious &&
+                _settings.FirewallAutoBlockEnabled &&
+                _networkBlocker is not null &&
+                result.NetworkIndicators.Count > 0)
+            {
+                var change = _networkBlocker.Apply(result.NetworkIndicators);
+                networkBlocked = change.TotalAdded;
+            }
+
             var locked = false;
             if (_blocker is not null && result.Verdict == ThreatVerdict.Malicious)
             {
@@ -488,6 +795,11 @@ public sealed class ProtectionHost : IDisposable
                 detail += locked ? "，已锁定（拒绝用户访问 + 独占占用）" : "，未能锁定文件";
             }
 
+            if (networkBlocked > 0)
+            {
+                detail += $"，已自动封禁网络指标 {networkBlocked} 项";
+            }
+
             if (terminated)
             {
                 detail += $"，已终止进程 PID {processId}";
@@ -495,6 +807,13 @@ public sealed class ProtectionHost : IDisposable
             else if (terminationDetail.Length > 0)
             {
                 detail += "，" + terminationDetail;
+            }
+
+            if (result.Verdict == ThreatVerdict.Malicious &&
+                HasDecisiveEvidence(result) &&
+                processId is int activePid)
+            {
+                RecordActiveThreat(activePid, path, result.ThreatName ?? result.VerdictText, ruleId, result.Score);
             }
 
             _hips?.ReportEvent(new HipsEvent(
@@ -654,6 +973,39 @@ public sealed class ProtectionHost : IDisposable
         }
     }
 
+    private SandboxOptions BuildSandboxOptions() => new()
+    {
+        Enabled = _settings.SandboxEnabled,
+        AutoRemediate = _settings.SandboxAutoRemediate,
+        AutoBlockNetwork = _settings.SandboxAutoBlockNetwork,
+        MaxRuntimeSeconds = _settings.SandboxMaxRunSeconds
+    };
+
+    private bool LockFileFromSandbox(string path, string reason)
+    {
+        try
+        {
+            var entry = _blocker?.Block(path, reason);
+            return entry is not null && (entry.AclApplied || entry.HandleHeld);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private int BlockNetworkFromSandbox(IReadOnlyList<NetworkIndicator> indicators)
+    {
+        try
+        {
+            return _networkBlocker?.Apply(indicators).TotalAdded ?? 0;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
     private static IReadOnlyList<string> BuildExclusions()
     {
         var exclusions = new List<string>
@@ -707,7 +1059,7 @@ public sealed class ProtectionHost : IDisposable
         Blocked = hipsEvent.Blocked
     };
 
-    private readonly record struct ScanWorkItem(string Path, int? ProcessId);
+    private readonly record struct ScanWorkItem(string Path, int? ProcessId, DateTime? ProcessStartTime);
 
     public void Dispose()
     {

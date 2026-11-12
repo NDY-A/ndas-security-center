@@ -37,6 +37,7 @@ public sealed record PeFileInfo
     public required bool IsDll { get; init; }
     public required DateTimeOffset? LinkerTimestamp { get; init; }
     public required int SectionCount { get; init; }
+    public double? FileEntropy { get; init; }
     public required IReadOnlyList<PeSectionInfo> Sections { get; init; }
     public required IReadOnlyList<string> ImportedDlls { get; init; }
     public required IReadOnlyList<string> ImportedFunctions { get; init; }

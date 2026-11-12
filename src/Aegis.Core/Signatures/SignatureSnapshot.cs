@@ -22,6 +22,9 @@ public sealed class SignatureSnapshot
     public int YaraRuleCount => Yara.RuleCount;
     public int SpecialPathCount => SpecialPaths.Count;
 
+    private readonly object _md5IndexLock = new();
+    private IReadOnlyDictionary<string, HashSignature>? _md5Index;
+
     public bool TryMatchHash(string sha256, out HashSignature? signature)
     {
         if (Hashes.TryGetValue(sha256, out var found))
@@ -32,5 +35,43 @@ public sealed class SignatureSnapshot
 
         signature = null;
         return false;
+    }
+
+    public bool TryMatchHash(string sha256, string? md5, out HashSignature? signature)
+    {
+        if (TryMatchHash(sha256, out signature))
+        {
+            return true;
+        }
+
+        return !string.IsNullOrWhiteSpace(md5) && TryMatchMd5(md5, out signature);
+    }
+
+    public bool TryMatchMd5(string md5, out HashSignature? signature)
+    {
+        var index = _md5Index;
+        if (index is null)
+        {
+            lock (_md5IndexLock)
+            {
+                index = _md5Index;
+                if (index is null)
+                {
+                    var built = new Dictionary<string, HashSignature>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var entry in Hashes.Values)
+                    {
+                        if (!string.IsNullOrWhiteSpace(entry.Md5))
+                        {
+                            built.TryAdd(entry.Md5, entry);
+                        }
+                    }
+
+                    index = built;
+                    _md5Index = index;
+                }
+            }
+        }
+
+        return index.TryGetValue(md5, out signature);
     }
 }

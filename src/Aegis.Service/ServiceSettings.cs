@@ -15,6 +15,11 @@ public sealed class ServiceSettings
     public int IdleScanIdleMinutes { get; set; } = 10;
     public bool AutoTerminateProcesses { get; set; }
     public bool AutoDeleteMaliciousP7b { get; set; }
+    public bool FirewallAutoBlockEnabled { get; set; }
+    public bool SandboxEnabled { get; set; } = true;
+    public bool SandboxAutoRemediate { get; set; } = true;
+    public bool SandboxAutoBlockNetwork { get; set; } = true;
+    public int SandboxMaxRunSeconds { get; set; } = 60;
 
     public ServiceConfiguration ToConfiguration() => new()
     {
@@ -27,7 +32,12 @@ public sealed class ServiceSettings
         IdleScanEnabled = IdleScanEnabled,
         IdleScanIdleMinutes = IdleScanIdleMinutes,
         AutoTerminateProcesses = AutoTerminateProcesses,
-        AutoDeleteMaliciousP7b = AutoDeleteMaliciousP7b
+        AutoDeleteMaliciousP7b = AutoDeleteMaliciousP7b,
+        FirewallAutoBlockEnabled = FirewallAutoBlockEnabled,
+        SandboxEnabled = SandboxEnabled,
+        SandboxAutoRemediate = SandboxAutoRemediate,
+        SandboxAutoBlockNetwork = SandboxAutoBlockNetwork,
+        SandboxMaxRunSeconds = SandboxMaxRunSeconds
     };
 
     public void Apply(ServiceConfiguration configuration)
@@ -42,6 +52,11 @@ public sealed class ServiceSettings
         IdleScanIdleMinutes = Math.Clamp(configuration.IdleScanIdleMinutes, 1, 240);
         AutoTerminateProcesses = configuration.AutoTerminateProcesses;
         AutoDeleteMaliciousP7b = configuration.AutoDeleteMaliciousP7b;
+        FirewallAutoBlockEnabled = configuration.FirewallAutoBlockEnabled;
+        SandboxEnabled = configuration.SandboxEnabled;
+        SandboxAutoRemediate = configuration.SandboxAutoRemediate;
+        SandboxAutoBlockNetwork = configuration.SandboxAutoBlockNetwork;
+        SandboxMaxRunSeconds = Math.Clamp(configuration.SandboxMaxRunSeconds, 30, 300);
     }
 
     public void Save(string path)

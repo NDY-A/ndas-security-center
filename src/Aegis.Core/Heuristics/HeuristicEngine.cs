@@ -68,7 +68,9 @@ public sealed class HeuristicEngine
         if (kind == FileKind.PortableExecutable)
         {
             var pe = PortableExecutableAnalyzer.Analyze(path);
-            peInfo = pe.Info;
+            peInfo = pe.Info is { } info
+                ? info with { FileEntropy = Math.Round(EntropyCalculator.Calculate(sample.Bytes), 3) }
+                : null;
             findings.AddRange(pe.Findings);
             notes.AddRange(pe.Notes);
         }

@@ -15,6 +15,10 @@ public static class ProcessRemediator
 
     public static bool TryTerminate(int pid, string? expectedPath, IReadOnlyList<string> exclusions,
         out string detail)
+        => TryTerminate(pid, expectedPath, null, exclusions, out detail);
+
+    public static bool TryTerminate(int pid, string? expectedPath, DateTime? expectedStartTime,
+        IReadOnlyList<string> exclusions, out string detail)
     {
         detail = string.Empty;
         if (pid <= 4 || pid == Environment.ProcessId)
@@ -64,6 +68,23 @@ public static class ProcessRemediator
             {
                 detail = "进程映像已变化（疑似 PID 复用），跳过终止";
                 return false;
+            }
+
+            if (expectedStartTime is DateTime expected)
+            {
+                try
+                {
+                    if ((process.StartTime - expected).Duration() > TimeSpan.FromSeconds(2))
+                    {
+                        detail = "进程启动时间不匹配（疑似 PID 复用），跳过终止";
+                        return false;
+                    }
+                }
+                catch
+                {
+                    detail = "无法读取进程启动时间，跳过终止";
+                    return false;
+                }
             }
 
             var windowsDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Windows);

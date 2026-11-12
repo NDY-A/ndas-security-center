@@ -1,6 +1,8 @@
 using System.ComponentModel;
+using Aegis.App.Services;
 using Aegis.Core.Models;
 using Aegis.Core.Scanning;
+using Aegis.Core.Service;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
@@ -26,6 +28,7 @@ public sealed partial class DashboardPage : Page
         if (!_subscribed)
         {
             App.Services.StateChanged += OnStateChanged;
+            App.PostRemediationScanRequested += OnPostRemediationRequested;
             _subscribed = true;
         }
 
@@ -44,6 +47,7 @@ public sealed partial class DashboardPage : Page
         RefreshDashboard();
         RefreshScanState();
         SyncJobs();
+        TryStartPostRemediationScan();
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
@@ -51,10 +55,33 @@ public sealed partial class DashboardPage : Page
         if (_subscribed)
         {
             App.Services.StateChanged -= OnStateChanged;
+            App.PostRemediationScanRequested -= OnPostRemediationRequested;
             _subscribed = false;
         }
 
         DetachJob();
+    }
+
+    private void OnPostRemediationRequested(object? sender, EventArgs e) =>
+        DispatcherQueue.TryEnqueue(TryStartPostRemediationScan);
+
+    private void TryStartPostRemediationScan()
+    {
+        if (!App.Services.IsInitialized || !App.TryConsumePostRemediationScan())
+        {
+            return;
+        }
+
+        if (_activeJob is { State: ScanJobState.Queued or ScanJobState.Running })
+        {
+            return;
+        }
+
+        ProfileSelector.SelectedIndex = 0;
+        ShowInfo(InfoBarSeverity.Informational, "复查扫描",
+            "强力清除完成后的自动复查扫描已启动。");
+        StartSelectedScan();
+        ScanCard.StartBringIntoView();
     }
 
     private void OnStateChanged(object? sender, EventArgs e)
@@ -64,6 +91,7 @@ public sealed partial class DashboardPage : Page
             RefreshDashboard();
             RefreshScanState();
             SyncJobs();
+            TryStartPostRemediationScan();
         });
     }
 
@@ -81,6 +109,7 @@ public sealed partial class DashboardPage : Page
             AgentStateText.Text = "不可用";
             AgentEndpointText.Text = "等待引擎初始化";
             LastScanText.Text = "尚未运行扫描。";
+            RefreshContainment();
             return;
         }
 
@@ -136,6 +165,185 @@ public sealed partial class DashboardPage : Page
         LastScanText.Text = last?.Summary is { } lastSummary
             ? FormatScanLine(lastSummary)
             : "尚未运行扫描。建议先运行一次快速扫描。";
+
+        RefreshContainment();
+    }
+
+    private void RefreshContainment()
+    {
+        var services = App.Services;
+        var threat = services.ActiveThreat;
+        var containment = services.ContainmentStatus;
+        var threatRunning = threat?.ProcessStillRunning == true;
+        var active = containment?.Active == true;
+        var hasRun = containment is not null && containment.State != ContainmentStates.Idle;
+
+        if (!threatRunning && !active && !hasRun)
+        {
+            ContainmentCard.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        ContainmentCard.Visibility = Visibility.Visible;
+        ContainmentButton.Visibility = threatRunning && !active ? Visibility.Visible : Visibility.Collapsed;
+        AbortContainmentButton.Visibility = active ? Visibility.Visible : Visibility.Collapsed;
+
+        if (threat is not null)
+        {
+            ThreatTitleText.Text = string.IsNullOrWhiteSpace(threat.ThreatName)
+                ? "检测到活动恶意软件"
+                : threat.ThreatName;
+            ThreatDetailText.Text =
+                $"{threat.ProcessName}（PID {threat.ProcessId}）· {threat.ProcessPath}\n"
+                + $"{threat.Evidence} · 检测于 {threat.DetectedAt:HH:mm:ss}";
+        }
+        else
+        {
+            ThreatTitleText.Text = "高威胁强力清除";
+            ThreatDetailText.Text = "强力清除流程进行中。";
+        }
+
+        var supported = services.ContainmentSupported;
+        ContainmentButton.IsEnabled = supported;
+        ContainmentButton.Content = supported ? "启动高威胁强力清除" : "需要防护服务";
+        ContainmentHintText.Text = supported
+            ? "强力清除只针对正在运行的活动恶意软件。执行时会关闭当前会话中所有非系统必需进程（未保存的工作会丢失），持续清扫新进程，扫描系统关键位置，备份并修复一次引导，完成后强制关机；下次登录会自动打开 NDAS 并快速扫描。"
+            : "高威胁强力清除需要 NDAS 防护服务（LocalSystem）。当前为本地模式，无法启动。";
+
+        if (hasRun)
+        {
+            ContainmentProgressPanel.Visibility = Visibility.Visible;
+            ContainmentPhaseText.Text = string.IsNullOrWhiteSpace(containment!.Phase) ? "处理中…" : containment.Phase;
+            ContainmentMetricsText.Text =
+                $"关键文件 {containment.CriticalFilesScanned:N0} · 处置 {containment.ThreatsRemediated:N0} · "
+                + $"终止进程 {containment.TerminatedProcesses:N0} · 锁定清扫 {containment.GuardSweepKills:N0}";
+            var lastAction = containment.Actions.Count > 0
+                ? containment.Actions[^1]
+                : containment.LastError ?? string.Empty;
+            ContainmentActionText.Text = lastAction;
+            ContainmentProgressBar.IsIndeterminate = active;
+        }
+        else
+        {
+            ContainmentProgressPanel.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private async void StartContainment_Click(object sender, RoutedEventArgs e)
+    {
+        if (!App.Services.ContainmentSupported)
+        {
+            ShowInfo(InfoBarSeverity.Warning, "需要防护服务",
+                "高威胁强力清除需要 NDAS 防护服务（LocalSystem）。");
+            return;
+        }
+
+        var threat = App.Services.ActiveThreat;
+        if (threat is null || !threat.ProcessStillRunning)
+        {
+            ShowInfo(InfoBarSeverity.Warning, "没有活动威胁",
+                "当前没有正在运行的活动恶意软件，强力清除已取消。");
+            RefreshDashboard();
+            return;
+        }
+
+        if (!await ConfirmContainmentAsync(threat))
+        {
+            return;
+        }
+
+        if (!ElevationHelper.IsElevated)
+        {
+            bool launched;
+            try
+            {
+                launched = ElevationHelper.TryLaunchContainRequest();
+            }
+            catch (Exception exception)
+            {
+                ShowInfo(InfoBarSeverity.Error, "无法请求管理员权限", exception.Message);
+                return;
+            }
+
+            ShowInfo(launched ? InfoBarSeverity.Informational : InfoBarSeverity.Warning,
+                launched ? "等待管理员授权" : "已取消",
+                launched
+                    ? "已请求管理员权限，允许后会自动开始强力清除。"
+                    : "未获得管理员授权，强力清除没有启动。");
+            return;
+        }
+
+        try
+        {
+            await App.Services.StartContainmentAsync();
+            ShowInfo(InfoBarSeverity.Informational, "强力清除已启动",
+                "正在关闭非系统必需进程并扫描系统关键位置。");
+        }
+        catch (Exception exception)
+        {
+            ShowInfo(InfoBarSeverity.Error, "无法启动强力清除", exception.Message);
+        }
+
+        RefreshDashboard();
+    }
+
+    private async void AbortContainment_Click(object sender, RoutedEventArgs e)
+    {
+        if (!await ConfirmAsync("取消强力清除",
+                "取消后会解除进程锁定；已完成的扫描和引导修复不会回滚，也不会强制关机。", "取消清除"))
+        {
+            return;
+        }
+
+        try
+        {
+            await App.Services.AbortContainmentAsync();
+            ShowInfo(InfoBarSeverity.Informational, "已取消", "强力清除已取消，进程锁定已解除。");
+        }
+        catch (Exception exception)
+        {
+            ShowInfo(InfoBarSeverity.Error, "无法取消强力清除", exception.Message);
+        }
+
+        RefreshDashboard();
+    }
+
+    private async Task<bool> ConfirmContainmentAsync(ServiceThreatIncident threat)
+    {
+        var acknowledge = new CheckBox
+        {
+            Content = "我明白将关闭当前会话中所有非系统必需的用户程序，未保存的工作会立即丢失。",
+            Margin = new Thickness(0, 12, 0, 0)
+        };
+        var content = new StackPanel { Spacing = 8 };
+        content.Children.Add(new TextBlock
+        {
+            Text = $"即将对 {threat.ProcessName}（PID {threat.ProcessId}）执行高威胁强力清除：",
+            TextWrapping = TextWrapping.Wrap
+        });
+        content.Children.Add(new TextBlock
+        {
+            Text = "• 关闭当前会话中所有非系统必需进程，并持续清扫新启动的进程（用户态尽力而为，不是内核级拦截）。\n"
+                   + "• 扫描启动项、驱动目录、系统目录近期可执行文件、ProgramData 与临时目录。\n"
+                   + "• 备份 BCD 并修复一次引导，不触碰 MBR 和其他系统的引导项。\n"
+                   + "• 完成后强制关机；下次登录会自动打开 NDAS 并快速扫描。",
+            TextWrapping = TextWrapping.Wrap
+        });
+        content.Children.Add(acknowledge);
+
+        var dialog = new ContentDialog
+        {
+            Title = "高威胁强力清除",
+            Content = content,
+            PrimaryButtonText = "开始强力清除",
+            CloseButtonText = "取消",
+            DefaultButton = ContentDialogButton.Close,
+            IsPrimaryButtonEnabled = false,
+            XamlRoot = XamlRoot
+        };
+        acknowledge.Checked += (_, _) => dialog.IsPrimaryButtonEnabled = true;
+        acknowledge.Unchecked += (_, _) => dialog.IsPrimaryButtonEnabled = false;
+        return await dialog.ShowAsync() == ContentDialogResult.Primary;
     }
 
     private void RefreshScanState()
