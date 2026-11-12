@@ -33,6 +33,7 @@ public sealed class SignatureUpdater
     public const string YaraRuleFileName = "yara/rules.yar";
     private const long MaxFileBytes = 16L * 1024 * 1024;
     private const long MaxYaraFileBytes = 32L * 1024 * 1024;
+    private const long MaxSpecialPathFileBytes = 1024L * 1024;
     private readonly string _dataRoot;
     private readonly HttpClient _httpClient;
     private readonly bool _ownsHttpClient;
@@ -201,7 +202,8 @@ public sealed class SignatureUpdater
                     Hashes = parsed.HashCount,
                     Domains = parsed.DomainCount,
                     Ips = parsed.IpCount,
-                    YaraRules = parsed.YaraRules
+                    YaraRules = parsed.YaraRules,
+                    SpecialPaths = parsed.SpecialPaths
                 }
             };
 
@@ -279,6 +281,20 @@ public sealed class SignatureUpdater
             if (!exception.Message.Contains("404", StringComparison.Ordinal))
             {
                 warnings.Add($"{source.Name} 未提供可用的 YARA 规则包：{SafeMessage(exception)}");
+            }
+        }
+
+        try
+        {
+            files[SpecialPathMatcher.FileName] = await DownloadAsync(
+                new Uri(source.BaseUri, SpecialPathMatcher.FileName), cancellationToken,
+                MaxSpecialPathFileBytes).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            if (!exception.Message.Contains("404", StringComparison.Ordinal))
+            {
+                warnings.Add($"{source.Name} 未提供特殊路径清单：{SafeMessage(exception)}");
             }
         }
 
@@ -519,7 +535,33 @@ public sealed class SignatureUpdater
             }
         }
 
-        return new ParsedCounts(hashResult.Hashes.Count, domainResult.Values.Count, ipResult.Values.Count, yaraRules, warnings);
+        var specialPaths = 0;
+        if (downloaded.Files.TryGetValue(SpecialPathMatcher.FileName, out var specialPathBytes))
+        {
+            await using var stream = new MemoryStream(specialPathBytes, writable: false);
+            var specialPathResult = await SpecialPathParser.ParseAsync(stream, cancellationToken).ConfigureAwait(false);
+            specialPaths = specialPathResult.Matcher.Count;
+            if (specialPaths == 0)
+            {
+                downloaded.Files.Remove(SpecialPathMatcher.FileName);
+                warnings.Add("下载的特殊路径清单没有有效条目，已忽略。");
+            }
+            else
+            {
+                foreach (var warning in specialPathResult.Warnings)
+                {
+                    if (warnings.Count >= 40)
+                    {
+                        break;
+                    }
+
+                    warnings.Add(warning);
+                }
+            }
+        }
+
+        return new ParsedCounts(hashResult.Hashes.Count, domainResult.Values.Count, ipResult.Values.Count,
+            yaraRules, specialPaths, warnings);
     }
 
     private void Commit(string staging)
@@ -566,5 +608,6 @@ public sealed class SignatureUpdater
 
     private sealed record DownloadedSet(SignatureUpdateSource Source, Dictionary<string, byte[]> Files, List<string> Warnings);
 
-    private sealed record ParsedCounts(int HashCount, int DomainCount, int IpCount, int YaraRules, List<string> Warnings);
+    private sealed record ParsedCounts(int HashCount, int DomainCount, int IpCount, int YaraRules,
+        int SpecialPaths, List<string> Warnings);
 }
