@@ -24,6 +24,8 @@ public sealed class ServiceConfiguration
     public bool BlockRegistry { get; set; } = true;
     public bool IdleScanEnabled { get; set; } = true;
     public int IdleScanIdleMinutes { get; set; } = 10;
+    public bool ContinuousScanEnabled { get; set; } = true;
+    public int ContinuousScanCpuPercent { get; set; } = 12;
     public bool AutoTerminateProcesses { get; set; }
     public bool AutoDeleteMaliciousP7b { get; set; }
     public bool FirewallAutoBlockEnabled { get; set; }
@@ -52,6 +54,14 @@ public sealed class ServiceStatus
     public DateTimeOffset? LastIdleScanAt { get; set; }
     public long LastIdleScanFiles { get; set; }
     public long LastIdleScanThreats { get; set; }
+    public bool ContinuousScanEnabled { get; set; }
+    public int ContinuousScanCpuPercent { get; set; }
+    public bool ContinuousScanActive { get; set; }
+    public long ContinuousScanFiles { get; set; }
+    public long ContinuousScanThreats { get; set; }
+    public string? ContinuousScanCurrentPath { get; set; }
+    public DateTimeOffset? ContinuousScanStartedAt { get; set; }
+    public DateTimeOffset? LastContinuousScanAt { get; set; }
     public bool AutoTerminateProcesses { get; set; }
     public bool AutoDeleteMaliciousP7b { get; set; }
     public bool FirewallAutoBlockEnabled { get; set; }

@@ -19,7 +19,7 @@ namespace Aegis.App.Services;
 public sealed class AppServices : IAsyncDisposable
 {
     public const string ProductName = "NDAS 安全中心";
-    public const string ProductVersion = "rs_preelease-0.0.7.0a";
+    public const string ProductVersion = "rs_preelease-0.0.8.0a";
 
     private readonly object _initLock = new();
     private readonly object _scannerLock = new();
@@ -685,6 +685,12 @@ public sealed class AppServices : IAsyncDisposable
             Settings.AutoDeleteMaliciousP7b = status.AutoDeleteMaliciousP7b;
         }
 
+        if (status.ContinuousScanCpuPercent > 0)
+        {
+            Settings.ContinuousScanEnabled = status.ContinuousScanEnabled;
+            Settings.ContinuousScanCpuPercent = status.ContinuousScanCpuPercent;
+        }
+
         if (status.SandboxSupported)
         {
             Settings.SandboxEnabled = status.SandboxEnabled;
@@ -702,6 +708,8 @@ public sealed class AppServices : IAsyncDisposable
         BlockRegistry = Settings.RealtimeBlockRegistry,
         IdleScanEnabled = Settings.IdleScanEnabled,
         IdleScanIdleMinutes = Settings.IdleScanIdleMinutes,
+        ContinuousScanEnabled = Settings.ContinuousScanEnabled,
+        ContinuousScanCpuPercent = Settings.ContinuousScanCpuPercent,
         AutoTerminateProcesses = Settings.AutoTerminateProcesses,
         AutoDeleteMaliciousP7b = Settings.AutoDeleteMaliciousP7b,
         FirewallAutoBlockEnabled = Settings.FirewallAutoBlockEnabled,
@@ -758,7 +766,9 @@ public sealed class AppServices : IAsyncDisposable
                                    + $"|{status.Containment?.LastError}|{status.Containment?.Actions.Count}"
                                    + $"|{status.SandboxAvailable}|{status.SandboxQueueDepth}|{status.SandboxAnalyzing}"
                                    + $"|{status.SandboxAnalyzed}|{status.SandboxMalicious}|{status.SandboxLastVerdict}"
-                                   + $"|{status.SandboxLastAt}|{status.SandboxLastError}";
+                                   + $"|{status.SandboxLastAt}|{status.SandboxLastError}"
+                                   + $"|{status.ContinuousScanActive}|{status.ContinuousScanFiles}"
+                                   + $"|{status.ContinuousScanThreats}|{status.ContinuousScanCurrentPath}";
                         _serviceStatus = status;
                         NotifyForNewServiceEvents(status);
                         if (!string.Equals(next, fingerprint, StringComparison.Ordinal))
@@ -811,6 +821,8 @@ public sealed class AppServices : IAsyncDisposable
             BlockCritical = Settings.HipsBlockCritical,
             IdleScanEnabled = Settings.IdleScanEnabled,
             IdleScanIdleMinutes = Settings.IdleScanIdleMinutes,
+            ContinuousScanEnabled = Settings.ContinuousScanEnabled,
+            ContinuousScanCpuPercent = Settings.ContinuousScanCpuPercent,
             AutoTerminateProcesses = Settings.AutoTerminateProcesses,
             AutoDeleteMaliciousP7b = Settings.AutoDeleteMaliciousP7b,
             FirewallAutoBlockEnabled = Settings.FirewallAutoBlockEnabled,
@@ -1409,6 +1421,21 @@ public sealed class AppServices : IAsyncDisposable
         EnsureReady();
         EnsureElevatedSettings();
         Settings.IdleScanEnabled = enabled;
+
+        if (_useService)
+        {
+            await ApplyServiceConfigurationAsync().ConfigureAwait(false);
+        }
+
+        await SaveSettingsAsync().ConfigureAwait(false);
+        RaiseStateChanged();
+    }
+
+    public async Task SetContinuousScanEnabledAsync(bool enabled)
+    {
+        EnsureReady();
+        EnsureElevatedSettings();
+        Settings.ContinuousScanEnabled = enabled;
 
         if (_useService)
         {

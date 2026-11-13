@@ -25,6 +25,8 @@ public sealed class AppSettings
     public bool RealtimeBlockRegistry { get; set; } = true;
     public bool IdleScanEnabled { get; set; } = true;
     public int IdleScanIdleMinutes { get; set; } = 10;
+    public bool ContinuousScanEnabled { get; set; } = true;
+    public int ContinuousScanCpuPercent { get; set; } = 12;
     public bool AutoTerminateProcesses { get; set; }
     public bool AutoDeleteMaliciousP7b { get; set; }
     public bool FirewallAutoBlockEnabled { get; set; }

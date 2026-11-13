@@ -96,6 +96,7 @@ public sealed partial class HipsPage : Page
             BlockInjectionToggle.IsOn = settings.RealtimeBlockInjection;
             BlockRegistryToggle.IsOn = settings.RealtimeBlockRegistry;
             IdleScanToggle.IsOn = settings.IdleScanEnabled;
+            ContinuousScanToggle.IsOn = settings.ContinuousScanEnabled;
             AutoDeleteP7bToggle.IsOn = settings.AutoDeleteMaliciousP7b;
             FirewallBlockToggle.IsOn = settings.FirewallAutoBlockEnabled;
             SandboxToggle.IsOn = settings.SandboxEnabled;
@@ -197,6 +198,18 @@ public sealed partial class HipsPage : Page
                             : status.LastIdleScanAt is { } lastScan
                                 ? $"闲时扫描：上次 {lastScan.ToLocalTime():MM-dd HH:mm}，扫描 {status.LastIdleScanFiles:N0} 个文件、发现 {status.LastIdleScanThreats:N0} 项。"
                                 : $"闲时扫描：等待系统空闲 {status.IdleScanIdleMinutes} 分钟。";
+        ContinuousScanStatusText.Text = !services.UseService
+            ? "持续后台扫描：需要安装并运行 NDAS 防护服务。"
+            : status is null
+                ? "持续后台扫描：—"
+                : status.ContinuousScanCpuPercent <= 0
+                    ? "持续后台扫描：需要将 NDAS 防护服务升级到 0.0.8.0a。"
+                    : !status.ContinuousScanEnabled
+                        ? "持续后台扫描：已关闭。"
+                        : status.ContinuousScanActive
+                            ? $"持续后台扫描：运行中（已扫描 {status.ContinuousScanFiles:N0} 个文件、发现 {status.ContinuousScanThreats:N0} 项，CPU ≤{status.ContinuousScanCpuPercent}%）"
+                              + (string.IsNullOrWhiteSpace(status.ContinuousScanCurrentPath) ? "。" : $"，当前：{status.ContinuousScanCurrentPath}")
+                            : "持续后台扫描：服务已启用，等待引擎启动。";
         SignatureSourceText.Text = services.Signatures is null
             ? "安全智能：尚未加载"
             : "安全智能来源：" + services.Signatures.Source;
@@ -468,6 +481,29 @@ public sealed partial class HipsPage : Page
         {
             ShowRealtimeInfo(InfoBarSeverity.Error, "保存失败", exception.Message);
             RevertToggle(IdleScanToggle, !enabled);
+        }
+
+        RefreshStatus();
+    }
+
+    private async void ContinuousScanToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_suppressToggles || !_ready || ContinuousScanToggle.IsOn == App.Services.Settings.ContinuousScanEnabled)
+        {
+            return;
+        }
+
+        var enabled = ContinuousScanToggle.IsOn;
+        try
+        {
+            await App.Services.SetContinuousScanEnabledAsync(enabled);
+            ShowRealtimeInfo(InfoBarSeverity.Informational, enabled ? "持续后台扫描已开启" : "持续后台扫描已关闭",
+                enabled ? "扫描引擎会常驻轮转系统关键位置，CPU 占用控制在 12% 以内。" : "后台不再持续扫描。");
+        }
+        catch (Exception exception)
+        {
+            ShowRealtimeInfo(InfoBarSeverity.Error, "保存失败", exception.Message);
+            RevertToggle(ContinuousScanToggle, !enabled);
         }
 
         RefreshStatus();

@@ -118,6 +118,16 @@
                             </StackPanel>
                         </ToggleSwitch.Header>
                     </ToggleSwitch>
+                    <ToggleSwitch x:Name="ContinuousScanToggle" OffContent="关" OnContent="开"
+                                  Toggled="ContinuousScanToggle_Toggled">
+                        <ToggleSwitch.Header>
+                            <StackPanel Spacing="3">
+                                <TextBlock Text="持续后台扫描（机器学习）" FontWeight="SemiBold" />
+                                <TextBlock Text="常驻扫描引擎永不停歇地轮转系统关键位置（桌面/下载/启动、Program Files、ProgramData、Temp、System32），每个文件都经过 ML 模型；CPU 占用上限默认 12%，可随时关闭。"
+                                           Style="{StaticResource AegisCaptionStyle}" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </ToggleSwitch.Header>
+                    </ToggleSwitch>
                     <ToggleSwitch x:Name="AutoDeleteP7bToggle" OffContent="关" OnContent="开"
                                   Toggled="AutoDeleteP7bToggle_Toggled">
                         <ToggleSwitch.Header>
@@ -149,6 +159,7 @@
                         </ToggleSwitch.Header>
                     </ToggleSwitch>
                     <TextBlock x:Name="IdleScanStatusText" Text="—" Style="{StaticResource AegisCaptionStyle}" />
+                    <TextBlock x:Name="ContinuousScanStatusText" Text="—" Style="{StaticResource AegisCaptionStyle}" TextWrapping="Wrap" />
                     <InfoBar x:Name="RealtimeInfo" IsOpen="False" IsClosable="True" />
                     <TextBlock Text="实时防护会扫描新启动的程序和当前活动的用户程序；注入/侧载与注册表阻断是用户态启发式，不是内核驱动。闲时扫描、p7b 处理与网络 IOC 封禁由 LocalSystem 防护服务执行。"
                                Style="{StaticResource AegisCaptionStyle}" />

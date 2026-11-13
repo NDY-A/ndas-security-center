@@ -32,6 +32,7 @@ public sealed class ProtectionHost : IDisposable
     private RealtimeFileMonitor? _fileMonitor;
     private SpecialPathProbe? _specialPathProbe;
     private IdleScanService? _idleScan;
+    private ContinuousScanService? _continuousScan;
     private ContainmentService? _containment;
     private SandboxCoordinator? _sandbox;
     private Channel<ScanWorkItem>? _queue;
@@ -118,9 +119,17 @@ public sealed class ProtectionHost : IDisposable
         _idleScan = new IdleScanService(
             IdleScanService.DefaultTargets,
             ScanIdleFileAsync,
-            () => _settings.IdleScanEnabled,
+            () => _settings.IdleScanEnabled && !_settings.ContinuousScanEnabled,
             () => _settings.IdleScanIdleMinutes,
             () => _exclusions);
+
+        _continuousScan = new ContinuousScanService(
+            ContinuousScanTargets,
+            ScanContinuousFileAsync,
+            () => _settings.ContinuousScanEnabled,
+            () => _settings.ContinuousScanCpuPercent,
+            () => _exclusions);
+        _continuousScan.Start();
 
         _workers = Task.WhenAll(
             Task.Run(() => ScanLoopAsync(_cancellation.Token), CancellationToken.None),
@@ -153,6 +162,8 @@ public sealed class ProtectionHost : IDisposable
         _specialPathProbe = null;
         _idleScan?.Dispose();
         _idleScan = null;
+        _continuousScan?.Dispose();
+        _continuousScan = null;
         _fileMonitor?.Dispose();
         _fileMonitor = null;
         _signatureTimer?.Dispose();
@@ -211,6 +222,14 @@ public sealed class ProtectionHost : IDisposable
             LastIdleScanAt = _idleScan?.LastScanAt,
             LastIdleScanFiles = _idleScan?.LastScanFiles ?? 0,
             LastIdleScanThreats = _idleScan?.LastScanThreats ?? 0,
+            ContinuousScanEnabled = _settings.ContinuousScanEnabled,
+            ContinuousScanCpuPercent = _settings.ContinuousScanCpuPercent,
+            ContinuousScanActive = _continuousScan?.IsActive == true,
+            ContinuousScanFiles = _continuousScan?.TotalFiles ?? 0,
+            ContinuousScanThreats = _continuousScan?.TotalThreats ?? 0,
+            ContinuousScanCurrentPath = _continuousScan?.CurrentPath,
+            ContinuousScanStartedAt = _continuousScan?.StartedAt,
+            LastContinuousScanAt = _continuousScan?.LastActivityAt,
             AutoTerminateProcesses = _settings.AutoTerminateProcesses,
             AutoDeleteMaliciousP7b = _settings.AutoDeleteMaliciousP7b,
             FirewallAutoBlockEnabled = _settings.FirewallAutoBlockEnabled,
@@ -721,6 +740,33 @@ public sealed class ProtectionHost : IDisposable
         }
 
         return !systemSoftware || HasDecisiveEvidence(result);
+    }
+
+    private async Task<bool> ScanContinuousFileAsync(string path, CancellationToken cancellationToken)
+    {
+        var systemSoftware = IsSystemSoftwarePath(path);
+        var result = await AnalyzeAndHandleAsync(path, null, null, "HIPS.CONTINUOUS.SCAN", cancellationToken,
+                systemSoftware)
+            .ConfigureAwait(false);
+        if (result?.Verdict is not (ThreatVerdict.Malicious or ThreatVerdict.Pua))
+        {
+            return false;
+        }
+
+        return !systemSoftware || HasDecisiveEvidence(result);
+    }
+
+    private static IReadOnlyList<string> ContinuousScanTargets()
+    {
+        var targets = new HashSet<string>(IdleScanService.DefaultTargets(), StringComparer.OrdinalIgnoreCase);
+        var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+        if (!string.IsNullOrWhiteSpace(windows))
+        {
+            targets.Add(Path.Combine(windows, "Temp"));
+            targets.Add(Path.Combine(windows, "System32"));
+        }
+
+        return targets.ToArray();
     }
 
     private async Task<FileScanResult?> AnalyzeAndHandleAsync(string path, int? processId,

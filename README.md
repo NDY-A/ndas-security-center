@@ -12,10 +12,13 @@ user-mode HIPS, a WinUI 3 UI and a LocalSystem protection service. This is an
 ## 功能
 
 - **扫描**：哈希 / 域名 / IP / 路径 IOC、YARA（内置 Elastic 规则集）、PE 与脚本启发式、云信誉接口
-- **机器学习**：C++ 原生提取 108 维 PE 静态特征，LightGBM 模型经 ONNX Runtime 本地推理；
-  ML 分数只作加权信号（单独最高 Pua 级），与哈希/YARA/启发式叠加后才可能判定恶意
+- **机器学习**：C++ 原生提取 109 维 PE 静态特征（含 Authenticode 签名校验状态），LightGBM 模型经
+  ONNX Runtime 本地推理；ML 分数只作加权信号（单独最高 Pua 级），与哈希/YARA/启发式
+  叠加后才可能判定恶意；签名校验失败 + ML 中等分 = 白加黑宿主篡改联合规则
 - **实时防护**：监控新启动进程与活动程序，扫描桌面/下载新增文件；命中后 ACL + 独占句柄锁定文件
 - **闲时扫描**：系统空闲约 10 分钟后扫描用户桌面/下载/启动、公用桌面、Program Files、ProgramData
+- **持续后台扫描**：常驻扫描引擎默认开启，永不停歇轮转系统关键位置（桌面/下载/启动、
+  Program Files、ProgramData、Temp、System32），全部经过 ML 模型；进程 CPU 占用上限 12%
 - **主动防护（HIPS）**：进程链、注入/侧载、Run/RunOnce 注册表变更；可选自动终止
 - **处置**：检测即锁定、恶意进程自动终止、恶意 `SiPolicy.p7b` 备份后删除
 - **通知**：威胁通知；未处理威胁每分钟重复提醒；关闭实时防护时显示红色警示并通知
@@ -52,7 +55,7 @@ HIPS 为 `src/Aegis.Hips`，ML 托管桥为 `src/Aegis.ML`，原生特征提取�
 
 ## 安装与卸载
 
-从 [Releases](../../releases) 下载 `NDAS-rs_p0.0.7.0a-win-x64.msi`，右键以管理员
+从 [Releases](../../releases) 下载 `NDAS-rs_p0.0.8.0a-win-x64.msi`，右键以管理员
 安装。未签名包会触发 SmartScreen，请确认来源后继续。
 
 **卸载**：自保护守卫运行时无法在正常模式卸载。请进入安全模式后在

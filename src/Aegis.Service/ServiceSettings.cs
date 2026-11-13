@@ -13,6 +13,8 @@ public sealed class ServiceSettings
     public bool BlockRegistry { get; set; } = true;
     public bool IdleScanEnabled { get; set; } = true;
     public int IdleScanIdleMinutes { get; set; } = 10;
+    public bool ContinuousScanEnabled { get; set; } = true;
+    public int ContinuousScanCpuPercent { get; set; } = 12;
     public bool AutoTerminateProcesses { get; set; }
     public bool AutoDeleteMaliciousP7b { get; set; }
     public bool FirewallAutoBlockEnabled { get; set; }
@@ -31,6 +33,8 @@ public sealed class ServiceSettings
         BlockRegistry = BlockRegistry,
         IdleScanEnabled = IdleScanEnabled,
         IdleScanIdleMinutes = IdleScanIdleMinutes,
+        ContinuousScanEnabled = ContinuousScanEnabled,
+        ContinuousScanCpuPercent = ContinuousScanCpuPercent,
         AutoTerminateProcesses = AutoTerminateProcesses,
         AutoDeleteMaliciousP7b = AutoDeleteMaliciousP7b,
         FirewallAutoBlockEnabled = FirewallAutoBlockEnabled,
@@ -50,6 +54,8 @@ public sealed class ServiceSettings
         BlockRegistry = configuration.BlockRegistry;
         IdleScanEnabled = configuration.IdleScanEnabled;
         IdleScanIdleMinutes = Math.Clamp(configuration.IdleScanIdleMinutes, 1, 240);
+        ContinuousScanEnabled = configuration.ContinuousScanEnabled;
+        ContinuousScanCpuPercent = Math.Clamp(configuration.ContinuousScanCpuPercent, 1, 90);
         AutoTerminateProcesses = configuration.AutoTerminateProcesses;
         AutoDeleteMaliciousP7b = configuration.AutoDeleteMaliciousP7b;
         FirewallAutoBlockEnabled = configuration.FirewallAutoBlockEnabled;
