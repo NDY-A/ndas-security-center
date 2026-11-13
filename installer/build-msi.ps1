@@ -1,7 +1,7 @@
 param(
     [string]$Configuration = 'Release',
-    [string]$Version = '0.0.5.0',
-    [string]$DisplayVersion = 'rs_p0.0.5.0a',
+    [string]$Version = '0.0.6.0',
+    [string]$DisplayVersion = 'rs_p0.0.6.0a',
     [string]$PublishFolderName = 'publish',
     [switch]$SkipSandboxPrepare
 )
@@ -14,6 +14,11 @@ $publishDir = Join-Path $root "dist\$PublishFolderName"
 $servicePublishDir = Join-Path $root 'dist\service'
 $sandboxDir = Join-Path $root 'dist\sandbox'
 $msiPath = Join-Path $root "dist\NDAS-$DisplayVersion-win-x64.msi"
+
+$nativeBuild = Join-Path $root 'native\AegisMl\build.ps1'
+if (Test-Path -LiteralPath $nativeBuild) {
+    & $nativeBuild -Config $Configuration
+}
 
 if (-not $SkipSandboxPrepare) {
     & (Join-Path $installerDir 'prepare-sandbox.ps1') -OutputDir $sandboxDir

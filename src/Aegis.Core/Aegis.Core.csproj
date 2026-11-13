@@ -5,4 +5,8 @@
     <AssemblyName>Aegis.Core</AssemblyName>
     <Description>Aegis local antivirus engine: signatures, heuristics, cloud reputation.</Description>
   </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Aegis.ML\Aegis.ML.csproj" />
+  </ItemGroup>
 </Project>

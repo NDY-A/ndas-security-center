@@ -51,6 +51,7 @@
       <Files Include="$(var.ServicePublishDir)\*.dll" />
       <Files Include="$(var.ServicePublishDir)\*.json" />
       <Files Include="$(var.ServicePublishDir)\createdump.exe" />
+      <Files Include="$(var.ServicePublishDir)\ML\*.onnx" Subdirectory="ML" />
       <Component Id="NdasServiceComponent" Guid="*">
         <File Id="NdasServiceExe" Source="$(var.ServicePublishDir)\NDASService.exe" KeyPath="yes" />
         <ServiceInstall Id="NdasServiceInstall"

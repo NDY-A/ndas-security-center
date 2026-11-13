@@ -28,7 +28,8 @@ public enum DetectionSource
     BuiltInTest,
     Yara,
     PathIoc,
-    Sandbox
+    Sandbox,
+    MachineLearning
 }
 
 public enum FileKind

@@ -13,3 +13,8 @@ dist/
 .tmp/
 .build-probe
 installer/.cache/
+ml/data/
+ml/model/
+native/vendor/
+native/AegisMl/build/
+ml/*.tsv

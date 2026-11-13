@@ -13,6 +13,8 @@ bundles the following third-party components:
 | System.IO.Pipes.AccessControl | MIT | Named pipe ACLs |
 | System.IO.FileSystem.AccessControl | MIT | File ACL blockade |
 | System.Security.Cryptography.Pkcs | MIT | PKCS#7 policy inspection |
+| ONNX Runtime | MIT | Native ML inference runtime, bundled as `ndas-ort.dll` (source: https://github.com/microsoft/onnxruntime) |
+| LightGBM | MIT | Used offline to train the PE classifier; not bundled with the installer |
 
 ## Built-in sandbox (installed under `Program Files\NDAS\Sandbox`)
 
@@ -43,6 +45,10 @@ available and an outbound firewall block for its Python executable.
   `special-paths.txt`) is sourced from
   [NDY-A/malware-egress-blocklist](https://github.com/NDY-A/malware-egress-blocklist)
   and released under CC0-1.0.
+- The PE ML model (`data/seed/ml/pe-ml.onnx`) was trained on
+  [DikeDataset](https://github.com/iosifache/DikeDataset) (MIT License) and
+  benign PE files sampled from Windows system directories. No training samples
+  are redistributed; only the model weights are included.
 
 ## Disclaimer
 

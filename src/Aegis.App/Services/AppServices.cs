@@ -19,7 +19,7 @@ namespace Aegis.App.Services;
 public sealed class AppServices : IAsyncDisposable
 {
     public const string ProductName = "NDAS 安全中心";
-    public const string ProductVersion = "rs_preelease-0.0.5.0a";
+    public const string ProductVersion = "rs_preelease-0.0.6.0a";
 
     private readonly object _initLock = new();
     private readonly object _scannerLock = new();

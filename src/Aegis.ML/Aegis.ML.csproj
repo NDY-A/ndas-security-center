@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>Aegis.ML</RootNamespace>
+    <AssemblyName>Aegis.ML</AssemblyName>
+    <Description>NDAS machine learning PE classifier: native feature extractor and ONNX inference bridge.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\native\AegisMl\build\AegisMl.dll"
+          Condition="Exists('..\..\native\AegisMl\build\AegisMl.dll')"
+          CopyToOutputDirectory="PreserveNewest"
+          Link="AegisMl.dll" />
+    <None Include="..\..\native\vendor\onnxruntime-win-x64-1.22.0\lib\onnxruntime.dll"
+          Condition="Exists('..\..\native\vendor\onnxruntime-win-x64-1.22.0\lib\onnxruntime.dll')"
+          CopyToOutputDirectory="Always"
+          Link="ndas-ort.dll" />
+    <None Include="..\..\data\seed\ml\pe-ml.onnx"
+          Condition="Exists('..\..\data\seed\ml\pe-ml.onnx')"
+          CopyToOutputDirectory="PreserveNewest"
+          Link="ML\pe-ml.onnx" />
+  </ItemGroup>
+</Project>

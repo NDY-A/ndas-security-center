@@ -5,6 +5,7 @@ using Aegis.Core.Heuristics;
 using Aegis.Core.Infrastructure;
 using Aegis.Core.Models;
 using Aegis.Core.Signatures;
+using Aegis.ML;
 
 namespace Aegis.Core.Scanning;
 
@@ -143,6 +144,16 @@ public sealed class AegisScanner
         var hasDecisiveLocalDetection = localScore >= MaliciousThreshold ||
                                         detections.Any(detection => detection.Source is DetectionSource.Hash or DetectionSource.BuiltInTest or DetectionSource.PathIoc);
 
+        if (options.RunHeuristics &&
+            kind == FileKind.PortableExecutable &&
+            !hasDecisiveLocalDetection &&
+            localScore < MaliciousThreshold)
+        {
+            ApplyMachineLearning(fullPath, detections, notes);
+            localScore = Math.Min(100, detections.Sum(detection => detection.Score));
+            hasDecisiveLocalDetection = localScore >= MaliciousThreshold;
+        }
+
         if (!hasDecisiveLocalDetection &&
             options.QueryCloud &&
             _cloud.IsConfigured &&
@@ -234,6 +245,47 @@ public sealed class AegisScanner
             ScanDuration = stopwatch.Elapsed,
             ScannedAt = DateTimeOffset.UtcNow
         };
+    }
+
+    private static void ApplyMachineLearning(string path, List<Detection> detections, List<string> notes)
+    {
+        if (!MlEngine.TryScore(path, out var probability, out var error))
+        {
+            return;
+        }
+
+        if (probability < 0.5f)
+        {
+            return;
+        }
+
+        notes.Add($"PE 静态特征机器学习模型评分：恶意概率 {probability:P1}（{MlEngine.ModelVersion}）。");
+        if (probability >= 0.92f)
+        {
+            detections.Add(new Detection
+            {
+                RuleId = "ML.PE.Model",
+                Name = "Heur:PE/ML.HighRisk",
+                Description = $"PE 静态特征机器学习模型判定为高度可疑（恶意概率 {probability:P1}）。该信号单独不构成最终判定，会与其他检测叠加。",
+                Score = 85,
+                Severity = ThreatSeverity.Medium,
+                Source = DetectionSource.MachineLearning,
+                Evidence = $"p={probability:F4} model={MlEngine.ModelVersion}"
+            });
+        }
+        else if (probability >= 0.85f)
+        {
+            detections.Add(new Detection
+            {
+                RuleId = "ML.PE.Model",
+                Name = "Heur:PE/ML.Suspicious",
+                Description = $"PE 静态特征机器学习模型给出较高风险评分（恶意概率 {probability:P1}）。该信号单独不构成最终判定，会与其他检测叠加。",
+                Score = 72,
+                Severity = ThreatSeverity.Low,
+                Source = DetectionSource.MachineLearning,
+                Evidence = $"p={probability:F4} model={MlEngine.ModelVersion}"
+            });
+        }
     }
 
     private static bool ShouldQueryCloud(FileKind kind, int localScore, CloudQueryPolicy policy)
