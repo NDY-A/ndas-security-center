@@ -104,6 +104,7 @@ def main():
         paths = [
             os.path.join(DATA_DIR, "benign-system.csv"),
             os.path.join(DATA_DIR, "benign-dike.csv"),
+            os.path.join(DATA_DIR, "benign-user.csv"),
             os.path.join(DATA_DIR, "malware-dike.csv"),
             os.path.join(DATA_DIR, "malware-user.csv"),
             os.path.join(DATA_DIR, "malware-host.csv"),

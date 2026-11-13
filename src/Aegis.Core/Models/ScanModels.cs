@@ -84,7 +84,7 @@ public sealed record ScanProgress
     public required string CurrentPath { get; init; }
 }
 
-public sealed class ScanOptions
+public sealed record ScanOptions
 {
     public long MaxFileSizeBytes { get; init; } = 512L * 1024 * 1024;
     public int MaxDegreeOfParallelism { get; init; } = Math.Clamp(Environment.ProcessorCount / 2, 2, 4);

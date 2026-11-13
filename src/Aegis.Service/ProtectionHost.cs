@@ -75,7 +75,7 @@ public sealed class ProtectionHost : IDisposable
             CloudPolicy = CloudQueryPolicy.Never,
             UseDefaultExclusions = true,
             UserExclusions = _exclusions,
-            AllowedHashes = Array.Empty<string>(),
+            AllowedHashes = _settings.AllowedHashes.ToArray(),
             IncludeHiddenFiles = false
         };
 
@@ -335,6 +335,7 @@ public sealed class ProtectionHost : IDisposable
     public ServiceStatus ApplyConfiguration(ServiceConfiguration configuration)
     {
         _settings.Apply(configuration);
+        _scanOptions = _scanOptions with { AllowedHashes = _settings.AllowedHashes.ToArray() };
         try
         {
             _settings.Save(ServicePaths.SettingsFile);

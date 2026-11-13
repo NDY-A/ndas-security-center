@@ -710,6 +710,7 @@ public sealed class AppServices : IAsyncDisposable
         IdleScanIdleMinutes = Settings.IdleScanIdleMinutes,
         ContinuousScanEnabled = Settings.ContinuousScanEnabled,
         ContinuousScanCpuPercent = Settings.ContinuousScanCpuPercent,
+        AllowedHashes = Settings.AllowedHashes.ToArray(),
         AutoTerminateProcesses = Settings.AutoTerminateProcesses,
         AutoDeleteMaliciousP7b = Settings.AutoDeleteMaliciousP7b,
         FirewallAutoBlockEnabled = Settings.FirewallAutoBlockEnabled,

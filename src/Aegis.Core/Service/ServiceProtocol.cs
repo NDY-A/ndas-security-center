@@ -26,6 +26,7 @@ public sealed class ServiceConfiguration
     public int IdleScanIdleMinutes { get; set; } = 10;
     public bool ContinuousScanEnabled { get; set; } = true;
     public int ContinuousScanCpuPercent { get; set; } = 12;
+    public string[] AllowedHashes { get; set; } = Array.Empty<string>();
     public bool AutoTerminateProcesses { get; set; }
     public bool AutoDeleteMaliciousP7b { get; set; }
     public bool FirewallAutoBlockEnabled { get; set; }

@@ -1,74 +1,74 @@
 {
-  "samples": 1411,
-  "train_samples": 1130,
-  "val_samples": 281,
+  "samples": 1414,
+  "train_samples": 1132,
+  "val_samples": 282,
   "features": 109,
-  "best_iteration": 45,
-  "val_auc": 0.9997815640017474,
-  "val_accuracy_at_0.5": 0.9857651245551602,
-  "val_tpr_at_fpr_1pct": 0.9841269841269841,
-  "threshold_fpr_1pct": 0.29519544287622207,
+  "best_iteration": 47,
+  "val_auc": 1.0,
+  "val_accuracy_at_0.5": 0.9964539007092199,
+  "val_tpr_at_fpr_1pct": 1.0,
+  "threshold_fpr_1pct": 0.48939939615025363,
   "top_features": [
     [
       "hist_e0_ef",
-      7581.471598237753
-    ],
-    [
-      "max_section_entropy",
-      1880.8192783594131
+      7955.022000730038
     ],
     [
       "pdb_path_present",
-      1044.89475440979
+      1877.8702574968338
+    ],
+    [
+      "max_section_entropy",
+      1071.8868572711945
     ],
     [
       "hist_b0_bf",
-      899.4762780666351
+      890.8419053554535
     ],
     [
       "url_count",
-      610.9534312486649
-    ],
-    [
-      "machine_amd64",
-      592.5799007415771
-    ],
-    [
-      "dll_nonstandard",
-      484.49166955053806
-    ],
-    [
-      "has_checksum",
-      450.7086179256439
+      704.3975362181664
     ],
     [
       "entry_section_entropy",
-      396.890048250556
+      505.95497584342957
+    ],
+    [
+      "machine_amd64",
+      488.9315986633301
+    ],
+    [
+      "has_checksum",
+      385.78470039367676
     ],
     [
       "suspicious_keyword_count",
-      391.2312717437744
+      287.1104373931885
     ],
     [
-      "subsystem_cui",
-      284.02769660949707
+      "dll_nonstandard",
+      270.1790397763252
     ],
     [
       "ascii_string_count_log",
-      225.31235128641129
+      261.62346804142
+    ],
+    [
+      "zero_byte_ratio",
+      241.9312379360199
+    ],
+    [
+      "subsystem_cui",
+      238.3259983062744
     ],
     [
       "embedded_pe_headers",
-      191.3889787197113
+      237.8164529800415
     ],
     [
-      "debug_directory_present",
-      179.24647475779057
-    ],
-    [
-      "hist_40_4f",
-      171.85960841178894
+      "kw_http",
+      144.05360221862793
     ]
   ],
-  "onnx": "ok max_diff=6.57918e-08 size=0.03MB"
+  "onnx": "ok max_diff=5.66356e-08 size=0.03MB"
 }

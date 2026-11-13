@@ -15,6 +15,7 @@ public sealed class ServiceSettings
     public int IdleScanIdleMinutes { get; set; } = 10;
     public bool ContinuousScanEnabled { get; set; } = true;
     public int ContinuousScanCpuPercent { get; set; } = 12;
+    public List<string> AllowedHashes { get; set; } = new();
     public bool AutoTerminateProcesses { get; set; }
     public bool AutoDeleteMaliciousP7b { get; set; }
     public bool FirewallAutoBlockEnabled { get; set; }
@@ -35,6 +36,7 @@ public sealed class ServiceSettings
         IdleScanIdleMinutes = IdleScanIdleMinutes,
         ContinuousScanEnabled = ContinuousScanEnabled,
         ContinuousScanCpuPercent = ContinuousScanCpuPercent,
+        AllowedHashes = AllowedHashes.ToArray(),
         AutoTerminateProcesses = AutoTerminateProcesses,
         AutoDeleteMaliciousP7b = AutoDeleteMaliciousP7b,
         FirewallAutoBlockEnabled = FirewallAutoBlockEnabled,
@@ -56,6 +58,11 @@ public sealed class ServiceSettings
         IdleScanIdleMinutes = Math.Clamp(configuration.IdleScanIdleMinutes, 1, 240);
         ContinuousScanEnabled = configuration.ContinuousScanEnabled;
         ContinuousScanCpuPercent = Math.Clamp(configuration.ContinuousScanCpuPercent, 1, 90);
+        AllowedHashes = (configuration.AllowedHashes ?? Array.Empty<string>())
+            .Where(hash => !string.IsNullOrWhiteSpace(hash))
+            .Select(hash => hash.Trim().ToLowerInvariant())
+            .Distinct()
+            .ToList();
         AutoTerminateProcesses = configuration.AutoTerminateProcesses;
         AutoDeleteMaliciousP7b = configuration.AutoDeleteMaliciousP7b;
         FirewallAutoBlockEnabled = configuration.FirewallAutoBlockEnabled;
