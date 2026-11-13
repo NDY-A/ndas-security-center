@@ -23,6 +23,7 @@
       <Directory Id="INSTALLFOLDER" Name="NDAS">
         <Directory Id="SERVICEFOLDER" Name="Service" />
         <Directory Id="SANDBOXFOLDER" Name="Sandbox" />
+        <Directory Id="GUARDFOLDER" Name="Guard" />
       </Directory>
     </StandardDirectory>
 
@@ -36,6 +37,7 @@
       <ComponentGroupRef Id="AppFiles" />
       <ComponentGroupRef Id="ServiceFiles" />
       <ComponentGroupRef Id="SandboxFiles" />
+      <ComponentGroupRef Id="GuardFiles" />
       <ComponentGroupRef Id="Shortcuts" />
     </Feature>
   </Package>
@@ -72,6 +74,37 @@
     <ComponentGroup Id="SandboxFiles" Directory="SANDBOXFOLDER">
       <Files Include="$(var.SandboxDir)\**" />
     </ComponentGroup>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="GuardFiles" Directory="GUARDFOLDER">
+      <Component Id="NdasGuardComponent" Guid="*">
+        <File Id="NdasGuardExe" Source="$(var.GuardDir)\NdasGuard.exe" KeyPath="yes" />
+        <ServiceInstall Id="NdasGuardServiceInstall"
+                        Name="NdasGuard"
+                        DisplayName="NDAS 自保护守卫"
+                        Description="NDAS self-protection watchdog: restores the NDAS service and guard sentinels when terminated"
+                        Arguments="--service"
+                        Start="auto"
+                        Type="ownProcess"
+                        ErrorControl="normal"
+                        Account="LocalSystem"
+                        Vital="yes" />
+        <ServiceControl Id="NdasGuardServiceControl" Name="NdasGuard" Stop="uninstall" Remove="uninstall" Wait="yes" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+
+  <Fragment>
+    <Binary Id="NdasGuardBinary" SourceFile="$(var.GuardDir)\NdasGuard.exe" />
+    <CustomAction Id="GuardDisarm" BinaryRef="NdasGuardBinary" ExeCommand="--disarm"
+                  Execute="deferred" Impersonate="no" Return="ignore" />
+    <CustomAction Id="GuardArm" BinaryRef="NdasGuardBinary" ExeCommand="--arm"
+                  Execute="deferred" Impersonate="no" Return="ignore" />
+    <InstallExecuteSequence>
+      <Custom Action="GuardDisarm" Before="StopServices" Condition="NOT REMOVE" />
+      <Custom Action="GuardArm" Before="InstallFinalize" Condition="NOT REMOVE" />
+    </InstallExecuteSequence>
   </Fragment>
 
   <Fragment>

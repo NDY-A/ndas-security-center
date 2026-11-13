@@ -16,10 +16,10 @@
     <Nullable>enable</Nullable>
     <ApplicationIcon>Assets\Aegis.ico</ApplicationIcon>
     <Description>NDAS local antivirus console built with WinUI 3.</Description>
-    <Version>0.0.6.0</Version>
-    <AssemblyVersion>0.0.6.0</AssemblyVersion>
-    <FileVersion>0.0.6.0</FileVersion>
-    <InformationalVersion>rs_preelease-0.0.6.0a</InformationalVersion>
+    <Version>0.0.7.0</Version>
+    <AssemblyVersion>0.0.7.0</AssemblyVersion>
+    <FileVersion>0.0.7.0</FileVersion>
+    <InformationalVersion>rs_preelease-0.0.7.0a</InformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>

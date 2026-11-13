@@ -1,7 +1,7 @@
 param(
     [string]$Configuration = 'Release',
-    [string]$Version = '0.0.6.0',
-    [string]$DisplayVersion = 'rs_p0.0.6.0a',
+    [string]$Version = '0.0.7.0',
+    [string]$DisplayVersion = 'rs_p0.0.7.0a',
     [string]$PublishFolderName = 'publish',
     [switch]$SkipSandboxPrepare
 )
@@ -15,9 +15,18 @@ $servicePublishDir = Join-Path $root 'dist\service'
 $sandboxDir = Join-Path $root 'dist\sandbox'
 $msiPath = Join-Path $root "dist\NDAS-$DisplayVersion-win-x64.msi"
 
+$guardDir = Join-Path $root 'dist\guard'
+
 $nativeBuild = Join-Path $root 'native\AegisMl\build.ps1'
 if (Test-Path -LiteralPath $nativeBuild) {
     & $nativeBuild -Config $Configuration
+}
+
+$guardBuild = Join-Path $root 'native\NdasGuard\build.ps1'
+if (Test-Path -LiteralPath $guardBuild) {
+    & $guardBuild -Config $Configuration
+    New-Item -ItemType Directory -Force -Path $guardDir | Out-Null
+    Copy-Item -LiteralPath (Join-Path $root 'native\NdasGuard\build\NdasGuard.exe') -Destination $guardDir -Force
 }
 
 if (-not $SkipSandboxPrepare) {
@@ -64,6 +73,7 @@ wix build (Join-Path $installerDir 'NDAS.wxs') `
     -d "PublishDir=$publishDir" `
     -d "ServicePublishDir=$servicePublishDir" `
     -d "SandboxDir=$sandboxDir" `
+    -d "GuardDir=$guardDir" `
     -d "LicenseRtf=$licenseRtf" `
     -pdbtype none `
     -o $msiPath

@@ -18,3 +18,4 @@ ml/model/
 native/vendor/
 native/AegisMl/build/
 ml/*.tsv
+native/NdasGuard/build/
