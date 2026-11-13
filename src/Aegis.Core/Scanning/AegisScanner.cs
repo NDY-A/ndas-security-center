@@ -254,12 +254,42 @@ public sealed class AegisScanner
             return;
         }
 
+        var signatureMismatch = detections.Any(detection => detection.RuleId == "Heur.PE.SignatureMismatch");
         if (probability < 0.5f)
         {
+            if (signatureMismatch && probability >= 0.3f)
+            {
+                detections.Add(new Detection
+                {
+                    RuleId = "Heur.PE.SignedHostTamper",
+                    Name = "Heur:PE/SignedHostTamper",
+                    Description = $"文件签名校验失败，且机器学习模型给出中等以上风险评分（{probability:P1}），符合白加黑宿主篡改/补丁加载器特征。",
+                    Score = 50,
+                    Severity = ThreatSeverity.High,
+                    Source = DetectionSource.Heuristic,
+                    Evidence = $"p={probability:F4} signature=invalid"
+                });
+                notes.Add($"联合信号：签名校验失败 + ML 恶意概率 {probability:P1}。");
+            }
+
             return;
         }
 
         notes.Add($"PE 静态特征机器学习模型评分：恶意概率 {probability:P1}（{MlEngine.ModelVersion}）。");
+        if (signatureMismatch && probability >= 0.3f)
+        {
+            detections.Add(new Detection
+            {
+                RuleId = "Heur.PE.SignedHostTamper",
+                Name = "Heur:PE/SignedHostTamper",
+                Description = $"文件签名校验失败，且机器学习模型给出较高风险评分（{probability:P1}），符合白加黑宿主篡改/补丁加载器特征。",
+                Score = 70,
+                Severity = ThreatSeverity.High,
+                Source = DetectionSource.Heuristic,
+                Evidence = $"p={probability:F4} signature=invalid"
+            });
+        }
+
         if (probability >= 0.92f)
         {
             detections.Add(new Detection

@@ -106,6 +106,7 @@ def main():
             os.path.join(DATA_DIR, "benign-dike.csv"),
             os.path.join(DATA_DIR, "malware-dike.csv"),
             os.path.join(DATA_DIR, "malware-user.csv"),
+            os.path.join(DATA_DIR, "malware-host.csv"),
         ]
         paths = [p for p in paths if os.path.exists(p)]
     if len(paths) < 2:

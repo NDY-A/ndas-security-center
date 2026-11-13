@@ -1,6 +1,8 @@
 #include "pe_features.h"
 
 #include <windows.h>
+#include <softpub.h>
+#include <wintrust.h>
 
 #include <algorithm>
 #include <cmath>
@@ -14,8 +16,30 @@
 #include "aegis_ml.h"
 #include "features.h"
 
+#pragma comment(lib, "wintrust.lib")
+
 namespace aegis_ml {
 namespace {
+
+int QuerySignatureState(const wchar_t* path, bool hasSignatureDirectory) {
+    if (!hasSignatureDirectory) return 0;
+    WINTRUST_FILE_INFO fileInfo = {};
+    fileInfo.cbStruct = sizeof(fileInfo);
+    fileInfo.pcwszFilePath = path;
+    GUID policy = WINTRUST_ACTION_GENERIC_VERIFY_V2;
+    WINTRUST_DATA data = {};
+    data.cbStruct = sizeof(data);
+    data.dwUIChoice = WTD_UI_NONE;
+    data.fdwRevocationChecks = WTD_REVOKE_NONE;
+    data.dwUnionChoice = WTD_CHOICE_FILE;
+    data.pFile = &fileInfo;
+    data.dwStateAction = WTD_STATEACTION_VERIFY;
+    data.dwProvFlags = WTD_CACHE_ONLY_URL_RETRIEVAL | WTD_REVOCATION_CHECK_NONE;
+    LONG status = WinVerifyTrust(nullptr, &policy, &data);
+    data.dwStateAction = WTD_STATEACTION_CLOSE;
+    WinVerifyTrust(nullptr, &policy, &data);
+    return status == ERROR_SUCCESS ? 1 : 2;
+}
 
 constexpr uint64_t kMaxFileSize = 256ull * 1024 * 1024;
 constexpr size_t kStringScanBytes = 96ull * 1024 * 1024;
@@ -479,6 +503,7 @@ int ExtractFeatures(const wchar_t* path, float* features, std::string* err) {
     features[F_timestamp_anomalous] =
         (timestamp != 0 && ((uint64_t)timestamp > now + 86400 || timestamp < 315532800)) ? 1.0f : 0.0f;
     features[F_has_authenticode] = securitySize > 0 ? 1.0f : 0.0f;
+    features[F_signature_state] = (float)QuerySignatureState(path, securitySize > 0);
     features[F_has_checksum] = checksum != 0 ? 1.0f : 0.0f;
     features[F_rich_header_present] =
         CountPattern(p + 0x40, (size_t)(std::min<uint64_t>(eLfanew, fileSize) - 0x40),

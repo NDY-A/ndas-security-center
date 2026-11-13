@@ -111,7 +111,8 @@
     X(hist_c0_cf) \
     X(hist_d0_df) \
     X(hist_e0_ef) \
-    X(hist_f0_ff)
+    X(hist_f0_ff) \
+    X(signature_state)
 
 namespace aegis_ml {
 

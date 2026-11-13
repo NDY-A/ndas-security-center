@@ -214,6 +214,20 @@ public static class PortableExecutableAnalyzer
             AddImportFindings(findings, imports, hasHighEntropyExecutable, hasWritableExecutable, hasPackerName);
 
             var authenticode = ReadAuthenticodeInfo(path, notes);
+            if (authenticode.State == AuthenticodeState.Invalid)
+            {
+                findings.Add(new Detection
+                {
+                    RuleId = "Heur.PE.SignatureMismatch",
+                    Name = "Heur:PE/SignatureMismatch",
+                    Description = "文件带有数字签名但签名校验失败（内容被修改、签名被截取或盗用），常见于白加黑宿主劫持/补丁加载器。",
+                    Score = 45,
+                    Severity = ThreatSeverity.Medium,
+                    Source = DetectionSource.Heuristic,
+                    Evidence = authenticode.Subject
+                });
+            }
+
             var timestamp = ParseLinkerTimestamp(coff.TimeDateStamp, notes);
             var info = new PeFileInfo
             {
@@ -453,28 +467,34 @@ public static class PortableExecutableAnalyzer
         return System.Text.Encoding.ASCII.GetString(bytes[..length]).Trim();
     }
 
-    private static (bool HasCertificate, string? Subject, string? Note) ReadAuthenticodeInfo(string path, List<string> notes)
+    private static (bool HasCertificate, string? Subject, string? Note, AuthenticodeState State) ReadAuthenticodeInfo(string path, List<string> notes)
     {
         if (!OperatingSystem.IsWindows())
         {
-            return (false, null, null);
+            return (false, null, null, AuthenticodeState.None);
         }
 
         try
         {
             var certificate = X509Certificate.CreateFromSignedFile(path);
             using var certificate2 = new X509Certificate2(certificate.GetRawCertData());
-            const string note = "检测到 Authenticode 证书；当前版本只检查存在性，未验证信任链/吊销状态。";
+            var state = AuthenticodeVerifier.Verify(path);
+            var note = state switch
+            {
+                AuthenticodeState.Valid => "Authenticode 签名校验通过。",
+                AuthenticodeState.Invalid => "检测到 Authenticode 证书，但签名校验失败：文件内容被修改或签名被截取/盗用。",
+                _ => "检测到 Authenticode 证书（校验状态未知）。"
+            };
             notes.Add(note);
-            return (true, certificate2.Subject, note);
+            return (true, certificate2.Subject, note, state);
         }
         catch (CryptographicException)
         {
-            return (false, null, null);
+            return (false, null, null, AuthenticodeState.None);
         }
         catch (IOException)
         {
-            return (false, null, null);
+            return (false, null, null, AuthenticodeState.None);
         }
     }
 

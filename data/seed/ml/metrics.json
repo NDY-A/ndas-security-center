@@ -1,74 +1,74 @@
 {
-  "samples": 1571,
-  "train_samples": 1258,
-  "val_samples": 313,
-  "features": 108,
-  "best_iteration": 72,
-  "val_auc": 0.9998551424432641,
-  "val_accuracy_at_0.5": 0.9968051118210862,
-  "val_tpr_at_fpr_1pct": 0.9894736842105263,
-  "threshold_fpr_1pct": 0.16214991025075487,
+  "samples": 1411,
+  "train_samples": 1130,
+  "val_samples": 281,
+  "features": 109,
+  "best_iteration": 45,
+  "val_auc": 0.9997815640017474,
+  "val_accuracy_at_0.5": 0.9857651245551602,
+  "val_tpr_at_fpr_1pct": 0.9841269841269841,
+  "threshold_fpr_1pct": 0.29519544287622207,
   "top_features": [
     [
       "hist_e0_ef",
-      9055.123496212065
+      7581.471598237753
     ],
     [
       "max_section_entropy",
-      1146.9837624132633
+      1880.8192783594131
     ],
     [
       "pdb_path_present",
-      1029.7079949378967
-    ],
-    [
-      "suspicious_keyword_count",
-      992.9736076593399
-    ],
-    [
-      "debug_directory_present",
-      728.2128775119781
-    ],
-    [
-      "embedded_pe_headers",
-      557.6248833090067
-    ],
-    [
-      "hist_a0_af",
-      506.99236488342285
-    ],
-    [
-      "url_count",
-      496.6000099889934
+      1044.89475440979
     ],
     [
       "hist_b0_bf",
-      463.80301982164383
+      899.4762780666351
     ],
     [
-      "entry_section_entropy",
-      364.8871676698327
-    ],
-    [
-      "nonstandard_section_name_count",
-      268.3066668510437
+      "url_count",
+      610.9534312486649
     ],
     [
       "machine_amd64",
-      264.2396628856659
+      592.5799007415771
+    ],
+    [
+      "dll_nonstandard",
+      484.49166955053806
+    ],
+    [
+      "has_checksum",
+      450.7086179256439
+    ],
+    [
+      "entry_section_entropy",
+      396.890048250556
+    ],
+    [
+      "suspicious_keyword_count",
+      391.2312717437744
     ],
     [
       "subsystem_cui",
-      258.77391815185547
+      284.02769660949707
     ],
     [
       "ascii_string_count_log",
-      256.6276031732559
+      225.31235128641129
     ],
     [
-      "subsystem_gui",
-      244.16122913360596
+      "embedded_pe_headers",
+      191.3889787197113
+    ],
+    [
+      "debug_directory_present",
+      179.24647475779057
+    ],
+    [
+      "hist_40_4f",
+      171.85960841178894
     ]
   ],
-  "onnx": "ok max_diff=6.1235e-08 size=0.04MB"
+  "onnx": "ok max_diff=6.57918e-08 size=0.03MB"
 }
