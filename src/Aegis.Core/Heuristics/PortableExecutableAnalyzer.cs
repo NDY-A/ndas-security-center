@@ -149,7 +149,7 @@ public static class PortableExecutableAnalyzer
                     RuleId = "Heur.PE.WXSection",
                     Name = "Heur:PE/WritableExecutableSection",
                     Description = "PE 包含同时可写且可执行的节区，常见于壳、注入器和自修改代码。",
-                    Score = 25,
+                    Score = 30,
                     Severity = ThreatSeverity.High,
                     Source = DetectionSource.Heuristic,
                     Evidence = string.Join(", ", sections.Where(x => x.IsExecutable && x.IsWritable).Select(x => x.Name))
@@ -163,7 +163,7 @@ public static class PortableExecutableAnalyzer
                     RuleId = "Heur.PE.PackerSection",
                     Name = "Heur:PE/PackerSection",
                     Description = "发现 UPX/Themida/VMProtect 等打包器特征节区。打包本身不必然是恶意，但会降低静态可读性。",
-                    Score = 28,
+                    Score = 35,
                     Severity = ThreatSeverity.High,
                     Source = DetectionSource.Heuristic,
                     Evidence = string.Join(", ", sections.Where(x => PackerSectionMarkers.Any(marker => x.Name.Contains(marker, StringComparison.OrdinalIgnoreCase))).Select(x => x.Name))
@@ -177,7 +177,7 @@ public static class PortableExecutableAnalyzer
                     RuleId = "Heur.PE.HighEntropy",
                     Name = "Heur:PE/HighEntropyCode",
                     Description = "可执行节区的熵值异常高，提示代码被压缩、加密或混淆。",
-                    Score = maxExecutableEntropy >= 7.5 ? 24 : 18,
+                    Score = maxExecutableEntropy >= 7.5 ? 34 : 24,
                     Severity = ThreatSeverity.Medium,
                     Source = DetectionSource.Heuristic,
                     Evidence = $"最高熵 {maxExecutableEntropy:F2}/8.00"
@@ -191,7 +191,7 @@ public static class PortableExecutableAnalyzer
                     RuleId = "Heur.PE.EntryPointOutsideSections",
                     Name = "Heur:PE/EntryPointOutsideSections",
                     Description = "入口点位于任何节区之外，是畸形或加壳 PE 的常见特征。",
-                    Score = 25,
+                    Score = 32,
                     Severity = ThreatSeverity.High,
                     Source = DetectionSource.Heuristic,
                     Evidence = $"EntryPoint RVA 0x{entryPoint:X}"
@@ -205,7 +205,7 @@ public static class PortableExecutableAnalyzer
                     RuleId = "Heur.PE.NoImports",
                     Name = "Heur:PE/NoVisibleImports",
                     Description = "PE 没有可解析的导入表；部分加壳程序会动态解析 API。",
-                    Score = 8,
+                    Score = 14,
                     Severity = ThreatSeverity.Low,
                     Source = DetectionSource.Heuristic
                 });
@@ -221,7 +221,7 @@ public static class PortableExecutableAnalyzer
                     RuleId = "Heur.PE.SignatureMismatch",
                     Name = "Heur:PE/SignatureMismatch",
                     Description = "文件带有数字签名但签名校验失败（内容被修改、签名被截取或盗用），常见于白加黑宿主劫持/补丁加载器。",
-                    Score = 45,
+                    Score = 60,
                     Severity = ThreatSeverity.Medium,
                     Source = DetectionSource.Heuristic,
                     Evidence = authenticode.Subject
@@ -276,7 +276,7 @@ public static class PortableExecutableAnalyzer
                 RuleId = "Heur.PE.InjectionImports",
                 Name = "Heur:PE/ProcessInjectionImports",
                 Description = "导入表包含跨进程内存写入或远程线程 API，属于高风险组合。",
-                Score = Math.Min(30, 12 + (injection.Length - 1) * 8),
+                Score = Math.Min(42, 18 + (injection.Length - 1) * 9),
                 Severity = injection.Length >= 2 ? ThreatSeverity.Critical : ThreatSeverity.High,
                 Source = DetectionSource.Heuristic,
                 Evidence = string.Join(", ", injection.Take(8))
@@ -291,7 +291,7 @@ public static class PortableExecutableAnalyzer
                 RuleId = "Heur.PE.CredentialImports",
                 Name = "Heur:PE/CredentialAccessImports",
                 Description = "导入表包含凭据读取、LSASS 转储或浏览器密码解密相关 API。",
-                Score = Math.Min(35, 24 + credentials.Length * 4),
+                Score = Math.Min(48, 32 + credentials.Length * 5),
                 Severity = ThreatSeverity.Critical,
                 Source = DetectionSource.Heuristic,
                 Evidence = string.Join(", ", credentials.Take(8))
@@ -306,7 +306,7 @@ public static class PortableExecutableAnalyzer
                 RuleId = "Heur.PE.InjectionAntiAnalysis",
                 Name = "Heur:PE/InjectionWithAntiAnalysis",
                 Description = "同时出现进程注入与反调试/反分析 API，行为链高度可疑。",
-                Score = 15,
+                Score = 22,
                 Severity = ThreatSeverity.High,
                 Source = DetectionSource.Heuristic,
                 Evidence = string.Join(", ", antiAnalysis.Take(6))
@@ -322,7 +322,7 @@ public static class PortableExecutableAnalyzer
                 RuleId = "Heur.PE.InjectionChain",
                 Name = "Heur:PE/InjectionAndDeliveryChain",
                 Description = "进程注入与持久化/网络下载能力同时存在，符合加载器或 RAT 的行为组合。",
-                Score = 18,
+                Score = 26,
                 Severity = ThreatSeverity.High,
                 Source = DetectionSource.Heuristic,
                 Evidence = string.Join(", ", persistence.Concat(network).Take(8))
@@ -336,7 +336,7 @@ public static class PortableExecutableAnalyzer
                 RuleId = "Heur.PE.PackedLoader",
                 Name = "Heur:PE/PackedInjectionLoader",
                 Description = "高风险注入 API 与高熵/可写可执行/打包特征组合，常见于加壳加载器。",
-                Score = 12,
+                Score = 18,
                 Severity = ThreatSeverity.High,
                 Source = DetectionSource.Heuristic
             });

@@ -140,7 +140,7 @@ public sealed class HeuristicEngine
         {
             var domainCount = indicators.Count(x => x.Kind == IndicatorKind.Domain);
             var ipCount = indicators.Count - domainCount;
-            var networkScore = Math.Min(60, domainCount * 25 + ipCount * 20);
+            var networkScore = Math.Min(75, domainCount * 30 + ipCount * 25);
             findings.Add(new Detection
             {
                 RuleId = "Heur.Network.KnownC2",

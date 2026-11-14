@@ -257,7 +257,7 @@ public sealed class AegisScanner
         var signatureMismatch = detections.Any(detection => detection.RuleId == "Heur.PE.SignatureMismatch");
         if (probability < 0.5f)
         {
-            if (signatureMismatch && probability >= 0.3f)
+            if (signatureMismatch && probability >= 0.2f)
             {
                 detections.Add(new Detection
                 {
@@ -276,41 +276,41 @@ public sealed class AegisScanner
         }
 
         notes.Add($"PE 静态特征机器学习模型评分：恶意概率 {probability:P1}（{MlEngine.ModelVersion}）。");
-        if (signatureMismatch && probability >= 0.3f)
+        if (signatureMismatch && probability >= 0.2f)
         {
             detections.Add(new Detection
             {
                 RuleId = "Heur.PE.SignedHostTamper",
                 Name = "Heur:PE/SignedHostTamper",
                 Description = $"文件签名校验失败，且机器学习模型给出较高风险评分（{probability:P1}），符合白加黑宿主篡改/补丁加载器特征。",
-                Score = 70,
+                Score = 80,
                 Severity = ThreatSeverity.High,
                 Source = DetectionSource.Heuristic,
                 Evidence = $"p={probability:F4} signature=invalid"
             });
         }
 
-        if (probability >= 0.92f)
+        if (probability >= 0.88f)
         {
             detections.Add(new Detection
             {
                 RuleId = "ML.PE.Model",
                 Name = "Heur:PE/ML.HighRisk",
                 Description = $"PE 静态特征机器学习模型判定为高度可疑（恶意概率 {probability:P1}）。该信号单独不构成最终判定，会与其他检测叠加。",
-                Score = 85,
+                Score = 88,
                 Severity = ThreatSeverity.Medium,
                 Source = DetectionSource.MachineLearning,
                 Evidence = $"p={probability:F4} model={MlEngine.ModelVersion}"
             });
         }
-        else if (probability >= 0.85f)
+        else if (probability >= 0.75f)
         {
             detections.Add(new Detection
             {
                 RuleId = "ML.PE.Model",
                 Name = "Heur:PE/ML.Suspicious",
                 Description = $"PE 静态特征机器学习模型给出较高风险评分（恶意概率 {probability:P1}）。该信号单独不构成最终判定，会与其他检测叠加。",
-                Score = 72,
+                Score = 75,
                 Severity = ThreatSeverity.Low,
                 Source = DetectionSource.MachineLearning,
                 Evidence = $"p={probability:F4} model={MlEngine.ModelVersion}"
