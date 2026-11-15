@@ -19,3 +19,15 @@ native/vendor/
 native/AegisMl/build/
 ml/*.tsv
 native/NdasGuard/build/
+__pycache__/
+*.pyc
+# Trained binaries and generated data are shipped via the MSI/Release, not git
+tools/security-agent/agent-model.onnx
+tools/security-agent/runtime/
+tools/security-agent/agent-data.jsonl
+tools/security-agent/*.log
+cloud-train/*.log
+cloud-train/runtime/
+# local-only prototypes with machine-specific paths
+tools/security-agent/agent.py
+tools/security-agent/agent_tools.py

@@ -34,6 +34,18 @@ public sealed class ServiceConfiguration
     public bool SandboxAutoRemediate { get; set; } = true;
     public bool SandboxAutoBlockNetwork { get; set; } = true;
     public int SandboxMaxRunSeconds { get; set; } = 60;
+    public bool AgentModeEnabled { get; set; } = true;
+    public string InvestigationRemediateMode { get; set; } = "auto";
+}
+
+public static class AgentStates
+{
+    public const string Unavailable = "unavailable";
+    public const string Starting = "starting";
+    public const string Running = "running";
+    public const string Restarting = "restarting";
+    public const string Stopped = "stopped";
+    public const string Failed = "failed";
 }
 
 public sealed class ServiceStatus
@@ -97,6 +109,29 @@ public sealed class ServiceStatus
     public List<ServiceBlockedFile> BlockedFiles { get; set; } = new();
     public ServiceThreatIncident? ActiveThreat { get; set; }
     public ServiceContainmentStatus? Containment { get; set; }
+    public string AgentState { get; set; } = AgentStates.Unavailable;
+    public DateTimeOffset? AgentStateSince { get; set; }
+    public string? AgentVersion { get; set; }
+    public string? AgentLastError { get; set; }
+    public int AgentRestartCount { get; set; }
+    public bool AgentModelLoaded { get; set; }
+    public long AgentDecisionCount { get; set; }
+    public long AgentDecisionErrors { get; set; }
+    public int AgentQueuedEvents { get; set; }
+    public long AgentDroppedEvents { get; set; }
+    public int AgentRttMs { get; set; }
+    public bool AgentScanActive { get; set; }
+    public int AgentScanQueueDepth { get; set; }
+    public long AgentFilesScanned { get; set; }
+    public long AgentThreatsFound { get; set; }
+    public DateTimeOffset? AgentLastScanAt { get; set; }
+    public string? AgentCurrentTarget { get; set; }
+    public string InvestigationRemediateMode { get; set; } = "auto";
+    public int ActiveCaseCount { get; set; }
+    public string? LastCaseId { get; set; }
+    public string? LastCaseStatus { get; set; }
+    public long CasesReported { get; set; }
+    public long CasesAutoRemediated { get; set; }
 }
 
 public sealed class ServiceThreatIncident

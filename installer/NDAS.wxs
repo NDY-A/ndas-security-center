@@ -23,6 +23,7 @@
       <Directory Id="INSTALLFOLDER" Name="NDAS">
         <Directory Id="SERVICEFOLDER" Name="Service" />
         <Directory Id="SANDBOXFOLDER" Name="Sandbox" />
+        <Directory Id="AGENTFOLDER" Name="Agent" />
         <Directory Id="GUARDFOLDER" Name="Guard" />
       </Directory>
     </StandardDirectory>
@@ -37,6 +38,7 @@
       <ComponentGroupRef Id="AppFiles" />
       <ComponentGroupRef Id="ServiceFiles" />
       <ComponentGroupRef Id="SandboxFiles" />
+      <ComponentGroupRef Id="AgentFiles" />
       <ComponentGroupRef Id="GuardFiles" />
       <ComponentGroupRef Id="Shortcuts" />
     </Feature>
@@ -73,6 +75,12 @@
   <Fragment>
     <ComponentGroup Id="SandboxFiles" Directory="SANDBOXFOLDER">
       <Files Include="$(var.SandboxDir)\**" />
+    </ComponentGroup>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="AgentFiles" Directory="AGENTFOLDER">
+      <Files Include="$(var.AgentDir)\**" />
     </ComponentGroup>
   </Fragment>
 

@@ -23,6 +23,8 @@ public sealed class ServiceSettings
     public bool SandboxAutoRemediate { get; set; } = true;
     public bool SandboxAutoBlockNetwork { get; set; } = true;
     public int SandboxMaxRunSeconds { get; set; } = 60;
+    public bool AgentModeEnabled { get; set; } = true;
+    public string InvestigationRemediateMode { get; set; } = "auto";
 
     public ServiceConfiguration ToConfiguration() => new()
     {
@@ -43,7 +45,9 @@ public sealed class ServiceSettings
         SandboxEnabled = SandboxEnabled,
         SandboxAutoRemediate = SandboxAutoRemediate,
         SandboxAutoBlockNetwork = SandboxAutoBlockNetwork,
-        SandboxMaxRunSeconds = SandboxMaxRunSeconds
+        SandboxMaxRunSeconds = SandboxMaxRunSeconds,
+        AgentModeEnabled = AgentModeEnabled,
+        InvestigationRemediateMode = InvestigationRemediateMode
     };
 
     public void Apply(ServiceConfiguration configuration)
@@ -70,6 +74,10 @@ public sealed class ServiceSettings
         SandboxAutoRemediate = configuration.SandboxAutoRemediate;
         SandboxAutoBlockNetwork = configuration.SandboxAutoBlockNetwork;
         SandboxMaxRunSeconds = Math.Clamp(configuration.SandboxMaxRunSeconds, 30, 300);
+        AgentModeEnabled = configuration.AgentModeEnabled;
+        InvestigationRemediateMode = configuration.InvestigationRemediateMode is "report" or "auto"
+            ? configuration.InvestigationRemediateMode
+            : "auto";
     }
 
     public void Save(string path)

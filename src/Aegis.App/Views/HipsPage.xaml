@@ -108,26 +108,6 @@
                             </StackPanel>
                         </ToggleSwitch.Header>
                     </ToggleSwitch>
-                    <ToggleSwitch x:Name="IdleScanToggle" OffContent="关" OnContent="开"
-                                  Toggled="IdleScanToggle_Toggled">
-                        <ToggleSwitch.Header>
-                            <StackPanel Spacing="3">
-                                <TextBlock Text="空闲时自动扫描" FontWeight="SemiBold" />
-                                <TextBlock Text="在你离开电脑约 10 分钟后后台扫描用户桌面/下载/启动、公用桌面以及 Program Files、ProgramData 等关键位置；系统软件目录只按哈希/路径 IOC/YARA 强证据处理。"
-                                           Style="{StaticResource AegisCaptionStyle}" TextWrapping="Wrap" />
-                            </StackPanel>
-                        </ToggleSwitch.Header>
-                    </ToggleSwitch>
-                    <ToggleSwitch x:Name="ContinuousScanToggle" OffContent="关" OnContent="开"
-                                  Toggled="ContinuousScanToggle_Toggled">
-                        <ToggleSwitch.Header>
-                            <StackPanel Spacing="3">
-                                <TextBlock Text="持续后台扫描（机器学习）" FontWeight="SemiBold" />
-                                <TextBlock Text="常驻扫描引擎永不停歇地轮转系统关键位置（桌面/下载/启动、Program Files、ProgramData、Temp、System32），每个文件都经过 ML 模型；CPU 占用上限默认 12%，可随时关闭。"
-                                           Style="{StaticResource AegisCaptionStyle}" TextWrapping="Wrap" />
-                            </StackPanel>
-                        </ToggleSwitch.Header>
-                    </ToggleSwitch>
                     <ToggleSwitch x:Name="AutoDeleteP7bToggle" OffContent="关" OnContent="开"
                                   Toggled="AutoDeleteP7bToggle_Toggled">
                         <ToggleSwitch.Header>
@@ -158,10 +138,21 @@
                             </StackPanel>
                         </ToggleSwitch.Header>
                     </ToggleSwitch>
-                    <TextBlock x:Name="IdleScanStatusText" Text="—" Style="{StaticResource AegisCaptionStyle}" />
-                    <TextBlock x:Name="ContinuousScanStatusText" Text="—" Style="{StaticResource AegisCaptionStyle}" TextWrapping="Wrap" />
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="调查与处置" FontWeight="SemiBold" />
+                        <TextBlock Text="病毒链追查始终开启且无法关闭：发现恶意对象后会顺着进程、落点和网络线索自动追查。此处只决定追查中发现的关联恶意对象如何处置。"
+                                   Style="{StaticResource AegisCaptionStyle}" TextWrapping="Wrap" />
+                        <ComboBox x:Name="InvestigationModeBox" Width="220" HorizontalAlignment="Left"
+                                  SelectionChanged="InvestigationModeBox_Changed">
+                            <ComboBoxItem Content="仅报告" Tag="report" />
+                            <ComboBoxItem Content="自动处置" Tag="auto" />
+                        </ComboBox>
+                    </StackPanel>
+                    <TextBlock x:Name="AgentStatusText" Text="决策 agent：—" Style="{StaticResource AegisCaptionStyle}"
+                               TextWrapping="Wrap" />
+                    <InfoBar x:Name="AgentInfo" IsOpen="False" IsClosable="True" Severity="Error" />
                     <InfoBar x:Name="RealtimeInfo" IsOpen="False" IsClosable="True" />
-                    <TextBlock Text="实时防护会扫描新启动的程序和当前活动的用户程序；注入/侧载与注册表阻断是用户态启发式，不是内核驱动。闲时扫描、p7b 处理与网络 IOC 封禁由 LocalSystem 防护服务执行。"
+                    <TextBlock Text="扫描目标、时机与处置由本地决策 agent（决策进程）统一调度；agent 不可用时自动扫描立即停止并报警。注入/侧载与注册表阻断是用户态启发式，不是内核驱动。"
                                Style="{StaticResource AegisCaptionStyle}" />
                 </StackPanel>
             </Border>

@@ -8,12 +8,13 @@ using Aegis.Core.Remediation;
 using Aegis.Core.Scanning;
 using Aegis.Core.Service;
 using Aegis.Core.Signatures;
+using Aegis.AgentHost;
 using Aegis.Hips;
 using Aegis.Sandbox;
 
 namespace Aegis.Service;
 
-public sealed class ProtectionHost : IDisposable
+public sealed partial class ProtectionHost : IDisposable
 {
     private readonly CancellationTokenSource _cancellation = new();
     private readonly object _scannerLock = new();
@@ -35,6 +36,7 @@ public sealed class ProtectionHost : IDisposable
     private ContinuousScanService? _continuousScan;
     private ContainmentService? _containment;
     private SandboxCoordinator? _sandbox;
+    private AgentCoordinator? _agent;
     private Channel<ScanWorkItem>? _queue;
     private Task? _workers;
     private IpcServer? _ipc;
@@ -108,6 +110,7 @@ public sealed class ProtectionHost : IDisposable
             (pid, path, threat, source, score) => RecordActiveThreat(pid, path, threat, source, score),
             hipsEvent => _hips?.ReportEvent(hipsEvent),
             () => _exclusions);
+        _sandbox.ResultObserved = PublishSandboxResult;
         _sandbox.Start();
 
         _fileMonitor = new RealtimeFileMonitor(path => Enqueue(path, null));
@@ -116,26 +119,16 @@ public sealed class ProtectionHost : IDisposable
         _specialPathProbe.Update(Volatile.Read(ref _snapshot)?.SpecialPaths ?? SpecialPathMatcher.Empty);
         _specialPathProbe.Start();
 
-        _idleScan = new IdleScanService(
-            IdleScanService.DefaultTargets,
-            ScanIdleFileAsync,
-            () => _settings.IdleScanEnabled && !_settings.ContinuousScanEnabled,
-            () => _settings.IdleScanIdleMinutes,
-            () => _exclusions);
-
-        _continuousScan = new ContinuousScanService(
-            ContinuousScanTargets,
-            ScanContinuousFileAsync,
-            () => _settings.ContinuousScanEnabled,
-            () => _settings.ContinuousScanCpuPercent,
-            () => _exclusions);
-        _continuousScan.Start();
-
+        // Scan scheduling is delegated to the decision agent: IdleScanService and
+        // ContinuousScanService are no longer started. Sensors keep feeding the agent
+        // through AgentEventRouter, and agent scan jobs replace the old loops.
         _workers = Task.WhenAll(
             Task.Run(() => ScanLoopAsync(_cancellation.Token), CancellationToken.None),
             Task.Run(() => ScanLoopAsync(_cancellation.Token), CancellationToken.None));
 
         _signatureTimer = new Timer(_ => _ = ReloadSignaturesAsync(), null, TimeSpan.FromMinutes(10), TimeSpan.FromMinutes(10));
+        _agentTickTimer = new Timer(_ => SendAgentTick(), null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(30));
+        ApplyAgentState();
         _ipc = new IpcServer(this);
         _ = _ipc.StartAsync(_cancellation.Token);
     }
@@ -149,6 +142,22 @@ public sealed class ProtectionHost : IDisposable
 
         _disposed = true;
         _cancellation.Cancel();
+        if (_agent is not null)
+        {
+            _agent.StateChanged -= OnAgentStateChanged;
+            try
+            {
+                await _agent.StopAsync().ConfigureAwait(false);
+            }
+            catch
+            {
+                // Shutdown is best-effort.
+            }
+
+            await _agent.DisposeAsync().ConfigureAwait(false);
+            _agent = null;
+        }
+
         _sandbox?.Dispose();
         _sandbox = null;
         _containment?.Dispose();
@@ -168,6 +177,8 @@ public sealed class ProtectionHost : IDisposable
         _fileMonitor = null;
         _signatureTimer?.Dispose();
         _signatureTimer = null;
+        _agentTickTimer?.Dispose();
+        _agentTickTimer = null;
         _queue?.Writer.TryComplete();
 
         if (_workers is not null)
@@ -203,6 +214,7 @@ public sealed class ProtectionHost : IDisposable
         var recent = _hips?.GetRecent(100).Select(MapEvent).ToList() ?? new List<ServiceEvent>();
         var snapshot = Volatile.Read(ref _snapshot);
         var sandbox = _sandbox?.GetStatus();
+        var agent = _agent?.GetStatus();
         return new ServiceStatus
         {
             ServiceRunning = !_disposed,
@@ -271,8 +283,144 @@ public sealed class ProtectionHost : IDisposable
                 .ToList(),
             BlockedFiles = _blocker?.Snapshot().ToList() ?? new List<ServiceBlockedFile>(),
             ActiveThreat = GetActiveThreat(),
-            Containment = _containment?.GetStatus()
+            Containment = _containment?.GetStatus(),
+            AgentState = agent?.State ?? AgentStates.Unavailable,
+            AgentStateSince = agent?.StateSince,
+            AgentVersion = agent?.Version,
+            AgentLastError = agent?.LastError ?? agent?.ComponentError,
+            AgentRestartCount = agent?.RestartCount ?? 0,
+            AgentModelLoaded = agent?.ModelLoaded ?? false,
+            AgentDecisionCount = agent?.DecisionCount ?? 0,
+            AgentDecisionErrors = agent?.DecisionErrors ?? 0,
+            AgentQueuedEvents = agent?.QueuedEvents ?? 0,
+            AgentDroppedEvents = agent?.DroppedEvents ?? 0,
+            AgentRttMs = agent?.RttMs ?? 0,
+            InvestigationRemediateMode = _settings.InvestigationRemediateMode,
+            ActiveCaseCount = _agentCases.Count(pair => pair.Value.Status != "closed"),
+            LastCaseId = _lastCaseId,
+            LastCaseStatus = _lastCaseStatus,
+            CasesReported = Interlocked.Read(ref _casesReported),
+            CasesAutoRemediated = Interlocked.Read(ref _casesAutoRemediated)
         };
+    }
+
+    public bool IsAgentProcess(int processId) => _agent?.ProcessId == processId;
+
+    public bool RetryAgent(out string error)
+    {
+        if (_agent is null)
+        {
+            error = "决策 agent 未启用。";
+            return false;
+        }
+
+        if (!_agent.Available)
+        {
+            error = "agent 组件不可用：" + (_agent.LastError ?? "未安装");
+            return false;
+        }
+
+        _agent.RequestRetry();
+        error = string.Empty;
+        return true;
+    }
+
+    private void ApplyAgentState()
+    {
+        if (_settings.AgentModeEnabled && _agent is null)
+        {
+            var component = AgentLocator.Locate();
+            _agent = new AgentCoordinator(component, ServicePaths.DataRoot, ServicePaths.LogsRoot)
+            {
+                Policy = BuildAgentPolicy()
+            };
+            WireAgent(_agent);
+            _agent.StateChanged += OnAgentStateChanged;
+            _agent.Start();
+            return;
+        }
+
+        if (!_settings.AgentModeEnabled && _agent is not null)
+        {
+            _agent.StateChanged -= OnAgentStateChanged;
+            try
+            {
+                _agent.StopAsync().Wait(TimeSpan.FromSeconds(3));
+            }
+            catch
+            {
+                // Best effort.
+            }
+
+            _agent.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(2));
+            _agent = null;
+            return;
+        }
+
+        if (_agent is not null)
+        {
+            _agent.Policy = BuildAgentPolicy();
+            _agent.NotifyPolicyChanged();
+        }
+    }
+
+    private AgentPolicy BuildAgentPolicy() => new()
+    {
+        RealtimeEnabled = _settings.RealtimeProtectionEnabled,
+        InvestigationRemediateMode = _settings.InvestigationRemediateMode,
+        SandboxEnabled = _settings.SandboxEnabled
+    };
+
+    private void OnAgentStateChanged(string state, string? error)
+    {
+        try
+        {
+            switch (state)
+            {
+                case AgentStates.Restarting:
+                    _lastError = error;
+                    _hips?.ReportEvent(new HipsEvent(
+                        DateTimeOffset.Now,
+                        "HIPS.AGENT.STOPPED",
+                        "决策 agent 已停止，扫描暂停",
+                        "agent 失去响应，所有 agent 驱动的扫描已停止；正在自动重启。" + (error ?? ""),
+                        HipsSeverity.Critical,
+                        null,
+                        null,
+                        null,
+                        false));
+                    break;
+                case AgentStates.Failed:
+                    _lastError = error;
+                    _hips?.ReportEvent(new HipsEvent(
+                        DateTimeOffset.Now,
+                        "HIPS.AGENT.FAILED",
+                        "决策 agent 启动失败，防护停扫",
+                        "连续重启失败，扫描保持停止，需手动重新启动 agent。" + (error ?? ""),
+                        HipsSeverity.Critical,
+                        null,
+                        null,
+                        null,
+                        false));
+                    break;
+                case AgentStates.Running:
+                    _hips?.ReportEvent(new HipsEvent(
+                        DateTimeOffset.Now,
+                        "HIPS.AGENT.RECOVERED",
+                        "决策 agent 已恢复",
+                        "agent 已完成握手，扫描调度恢复。",
+                        HipsSeverity.High,
+                        null,
+                        null,
+                        null,
+                        false));
+                    break;
+            }
+        }
+        catch
+        {
+            // Event reporting must never take down the service.
+        }
     }
 
     private ServiceThreatIncident? GetActiveThreat()
@@ -347,6 +495,7 @@ public sealed class ProtectionHost : IDisposable
 
         ApplyHipsState();
         ApplyNetworkBlockState();
+        ApplyAgentState();
         return GetStatus();
     }
 
@@ -424,7 +573,14 @@ public sealed class ProtectionHost : IDisposable
                 // Protected or already exited processes keep an unknown start time.
             }
 
-            Enqueue(observation.ProcessPath, observation.ProcessId, started);
+            if (AgentRoutingEnabled)
+            {
+                RouteProcessEvent(observation, started);
+            }
+            else
+            {
+                Enqueue(observation.ProcessPath, observation.ProcessId, started);
+            }
         }
     }
 
@@ -605,7 +761,7 @@ public sealed class ProtectionHost : IDisposable
                 return;
             }
 
-            if (_settings.AutoDeleteMaliciousP7b)
+            if (!AgentRoutingEnabled && _settings.AutoDeleteMaliciousP7b)
             {
                 var deleted = P7bRemediator.TryBackupAndDelete(entry.Path, ServicePaths.DataRoot, out var outcome);
                 _hips?.ReportEvent(new HipsEvent(
@@ -638,7 +794,14 @@ public sealed class ProtectionHost : IDisposable
 
         if (!isDirectory && _settings.RealtimeProtectionEnabled)
         {
-            EnqueueSpecialPath(entry.Path);
+            if (AgentRoutingEnabled)
+            {
+                RouteSpecialPathEvent(entry, isDirectory);
+            }
+            else
+            {
+                EnqueueSpecialPath(entry.Path);
+            }
         }
     }
 
@@ -678,6 +841,12 @@ public sealed class ProtectionHost : IDisposable
         }
 
         _recentScans[path] = now;
+        if (AgentRoutingEnabled)
+        {
+            RouteFileEvent(path, processId, processStartTime, "realtime");
+            return;
+        }
+
         _queue?.Writer.TryWrite(new ScanWorkItem(path, processId, processStartTime));
     }
 
@@ -731,6 +900,11 @@ public sealed class ProtectionHost : IDisposable
 
     private async Task<bool> ScanIdleFileAsync(string path, CancellationToken cancellationToken)
     {
+        if (AgentRoutingEnabled)
+        {
+            return false;
+        }
+
         var systemSoftware = IsSystemSoftwarePath(path);
         var result = await AnalyzeAndHandleAsync(path, null, null, "HIPS.IDLE.SCAN", cancellationToken,
                 systemSoftware)
@@ -745,6 +919,11 @@ public sealed class ProtectionHost : IDisposable
 
     private async Task<bool> ScanContinuousFileAsync(string path, CancellationToken cancellationToken)
     {
+        if (AgentRoutingEnabled)
+        {
+            return false;
+        }
+
         var systemSoftware = IsSystemSoftwarePath(path);
         var result = await AnalyzeAndHandleAsync(path, null, null, "HIPS.CONTINUOUS.SCAN", cancellationToken,
                 systemSoftware)
@@ -1030,6 +1209,12 @@ public sealed class ProtectionHost : IDisposable
 
     private bool LockFileFromSandbox(string path, string reason)
     {
+        if (AgentRoutingEnabled)
+        {
+            // Remediation is the agent's decision in agent mode.
+            return false;
+        }
+
         try
         {
             var entry = _blocker?.Block(path, reason);
@@ -1043,6 +1228,11 @@ public sealed class ProtectionHost : IDisposable
 
     private int BlockNetworkFromSandbox(IReadOnlyList<NetworkIndicator> indicators)
     {
+        if (AgentRoutingEnabled)
+        {
+            return 0;
+        }
+
         try
         {
             return _networkBlocker?.Apply(indicators).TotalAdded ?? 0;

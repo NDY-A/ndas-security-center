@@ -60,6 +60,9 @@ public sealed class SandboxCoordinator : IDisposable
 
     public bool Supported => true;
 
+    /// <summary>Notified for every completed analysis so the decision agent can observe it.</summary>
+    public Action<SandboxResult, SandboxCandidate>? ResultObserved { get; set; }
+
     public void Start()
     {
         try
@@ -389,6 +392,14 @@ public sealed class SandboxCoordinator : IDisposable
             _ => HipsSeverity.Low
         };
         Report("HIPS.SANDBOX.RESULT", "沙箱分析完成", detail, severity, candidate.SourcePath, remediated);
+        try
+        {
+            ResultObserved?.Invoke(result, candidate);
+        }
+        catch
+        {
+            // Observers must never break the sandbox worker.
+        }
     }
 
     private List<string> Remediate(SandboxCandidate candidate, SandboxResult result, SandboxOptions options)

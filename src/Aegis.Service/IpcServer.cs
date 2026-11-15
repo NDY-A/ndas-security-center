@@ -99,10 +99,10 @@ public sealed class IpcServer
                     ServiceStatus status;
                     if (request?.Command.Equals("block", StringComparison.OrdinalIgnoreCase) == true)
                     {
-                        if (!ClientIsElevated(pipe))
+                        if (!TryAuthorizeWrite(pipe, "文件锁定", out var authError))
                         {
                             status = _host.GetStatus();
-                            status.LastError = "锁定文件需要管理员权限。";
+                            status.LastError = authError;
                         }
                         else if (string.IsNullOrWhiteSpace(request.Path) || !File.Exists(request.Path))
                         {
@@ -117,10 +117,10 @@ public sealed class IpcServer
                     }
                     else if (request?.Command.Equals("unblock", StringComparison.OrdinalIgnoreCase) == true)
                     {
-                        if (!ClientIsElevated(pipe))
+                        if (!TryAuthorizeWrite(pipe, "解除锁定", out var authError))
                         {
                             status = _host.GetStatus();
-                            status.LastError = "解除锁定需要管理员权限。";
+                            status.LastError = authError;
                         }
                         else if (string.IsNullOrWhiteSpace(request.Path))
                         {
@@ -135,10 +135,10 @@ public sealed class IpcServer
                     }
                     else if (request?.Command.Equals("contain", StringComparison.OrdinalIgnoreCase) == true)
                     {
-                        if (!ClientIsElevated(pipe))
+                        if (!TryAuthorizeWrite(pipe, "启动强力清除", out var authError))
                         {
                             status = _host.GetStatus();
-                            status.LastError = "启动强力清除需要管理员权限。";
+                            status.LastError = authError;
                         }
                         else if (!TryGetClientSession(pipe, out var sessionId))
                         {
@@ -157,10 +157,10 @@ public sealed class IpcServer
                     }
                     else if (request?.Command.Equals("contain-abort", StringComparison.OrdinalIgnoreCase) == true)
                     {
-                        if (!ClientIsElevated(pipe))
+                        if (!TryAuthorizeWrite(pipe, "取消强力清除", out var authError))
                         {
                             status = _host.GetStatus();
-                            status.LastError = "取消强力清除需要管理员权限。";
+                            status.LastError = authError;
                         }
                         else if (!_host.AbortContainment(out var error))
                         {
@@ -179,14 +179,31 @@ public sealed class IpcServer
                             status = _host.GetStatus();
                             status.LastError = "配置内容为空。";
                         }
-                        else if (!ClientIsElevated(pipe))
+                        else if (!TryAuthorizeWrite(pipe, "修改防护设置", out var authError))
                         {
                             status = _host.GetStatus();
-                            status.LastError = "修改防护设置需要管理员权限。";
+                            status.LastError = authError;
                         }
                         else
                         {
                             status = _host.ApplyConfiguration(request.Settings);
+                        }
+                    }
+                    else if (request?.Command.Equals("agent-retry", StringComparison.OrdinalIgnoreCase) == true)
+                    {
+                        if (!TryAuthorizeWrite(pipe, "重新启动决策 agent", out var authError))
+                        {
+                            status = _host.GetStatus();
+                            status.LastError = authError;
+                        }
+                        else if (!_host.RetryAgent(out var error))
+                        {
+                            status = _host.GetStatus();
+                            status.LastError = error;
+                        }
+                        else
+                        {
+                            status = _host.GetStatus();
                         }
                     }
                     else
@@ -226,6 +243,55 @@ public sealed class IpcServer
         {
             return false;
         }
+    }
+
+    /// <summary>
+    /// Write-command gate. Requires an interactive session (session 0 is always rejected,
+    /// even for elevated System tokens) and refuses the decision agent process itself.
+    /// This closes the hole where a restricted LocalSystem token could still call
+    /// <c>configure</c> and slip hashes into the service allow list.
+    /// </summary>
+    private bool TryAuthorizeWrite(NamedPipeServerStream pipe, string action, out string? error)
+    {
+        error = null;
+        if (!GetNamedPipeClientProcessId(pipe.SafePipeHandle, out var processId))
+        {
+            error = "无法识别客户端进程。";
+            return false;
+        }
+
+        var pid = (int)processId;
+        if (_host.IsAgentProcess(pid))
+        {
+            error = "决策 agent 不允许修改防护设置。";
+            return false;
+        }
+
+        int sessionId;
+        try
+        {
+            using var process = Process.GetProcessById(pid);
+            sessionId = process.SessionId;
+        }
+        catch
+        {
+            error = "无法识别客户端会话。";
+            return false;
+        }
+
+        if (sessionId <= 0)
+        {
+            error = "服务会话中的客户端不能执行写操作。";
+            return false;
+        }
+
+        if (!ClientIsElevated(pipe))
+        {
+            error = $"执行{action}需要管理员权限。";
+            return false;
+        }
+
+        return true;
     }
 
     private static bool ClientIsElevated(NamedPipeServerStream pipe)

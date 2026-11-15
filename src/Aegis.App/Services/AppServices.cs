@@ -19,7 +19,7 @@ namespace Aegis.App.Services;
 public sealed class AppServices : IAsyncDisposable
 {
     public const string ProductName = "NDAS 安全中心";
-    public const string ProductVersion = "rs_preelease-0.0.8.0a";
+    public const string ProductVersion = "rs_preelease-0.0.9.0a";
 
     private readonly object _initLock = new();
     private readonly object _scannerLock = new();
@@ -706,17 +706,15 @@ public sealed class AppServices : IAsyncDisposable
         ScanActiveProcesses = Settings.RealtimeScanActiveProcesses,
         BlockInjection = Settings.RealtimeBlockInjection,
         BlockRegistry = Settings.RealtimeBlockRegistry,
-        IdleScanEnabled = Settings.IdleScanEnabled,
-        IdleScanIdleMinutes = Settings.IdleScanIdleMinutes,
-        ContinuousScanEnabled = Settings.ContinuousScanEnabled,
-        ContinuousScanCpuPercent = Settings.ContinuousScanCpuPercent,
         AllowedHashes = Settings.AllowedHashes.ToArray(),
         AutoTerminateProcesses = Settings.AutoTerminateProcesses,
         AutoDeleteMaliciousP7b = Settings.AutoDeleteMaliciousP7b,
         FirewallAutoBlockEnabled = Settings.FirewallAutoBlockEnabled,
         SandboxEnabled = Settings.SandboxEnabled,
         SandboxAutoRemediate = Settings.SandboxAutoRemediate,
-        SandboxMaxRunSeconds = Settings.SandboxMaxRunSeconds
+        SandboxMaxRunSeconds = Settings.SandboxMaxRunSeconds,
+        AgentModeEnabled = Settings.AgentModeEnabled,
+        InvestigationRemediateMode = Settings.InvestigationRemediateMode
     };
 
     private async Task ApplyServiceConfigurationAsync()
@@ -768,8 +766,10 @@ public sealed class AppServices : IAsyncDisposable
                                    + $"|{status.SandboxAvailable}|{status.SandboxQueueDepth}|{status.SandboxAnalyzing}"
                                    + $"|{status.SandboxAnalyzed}|{status.SandboxMalicious}|{status.SandboxLastVerdict}"
                                    + $"|{status.SandboxLastAt}|{status.SandboxLastError}"
-                                   + $"|{status.ContinuousScanActive}|{status.ContinuousScanFiles}"
-                                   + $"|{status.ContinuousScanThreats}|{status.ContinuousScanCurrentPath}";
+                                   + $"|{status.AgentState}|{status.AgentDecisionCount}|{status.AgentQueuedEvents}"
+                                   + $"|{status.AgentDroppedEvents}|{status.AgentModelLoaded}|{status.AgentRestartCount}"
+                                   + $"|{status.AgentLastError}|{status.ActiveCaseCount}|{status.LastCaseId}"
+                                   + $"|{status.InvestigationRemediateMode}";
                         _serviceStatus = status;
                         NotifyForNewServiceEvents(status);
                         if (!string.Equals(next, fingerprint, StringComparison.Ordinal))
@@ -820,10 +820,8 @@ public sealed class AppServices : IAsyncDisposable
             BlockInjection = Settings.RealtimeBlockInjection,
             BlockRegistry = Settings.RealtimeBlockRegistry,
             BlockCritical = Settings.HipsBlockCritical,
-            IdleScanEnabled = Settings.IdleScanEnabled,
-            IdleScanIdleMinutes = Settings.IdleScanIdleMinutes,
-            ContinuousScanEnabled = Settings.ContinuousScanEnabled,
-            ContinuousScanCpuPercent = Settings.ContinuousScanCpuPercent,
+            AgentState = AgentStates.Unavailable,
+            InvestigationRemediateMode = Settings.InvestigationRemediateMode,
             AutoTerminateProcesses = Settings.AutoTerminateProcesses,
             AutoDeleteMaliciousP7b = Settings.AutoDeleteMaliciousP7b,
             FirewallAutoBlockEnabled = Settings.FirewallAutoBlockEnabled,
@@ -955,7 +953,9 @@ public sealed class AppServices : IAsyncDisposable
         return ruleId.StartsWith("HIPS.REALTIME", StringComparison.OrdinalIgnoreCase) ||
                ruleId.StartsWith("HIPS.IDLE", StringComparison.OrdinalIgnoreCase) ||
                ruleId.StartsWith("HIPS.IOC", StringComparison.OrdinalIgnoreCase) ||
-               ruleId.StartsWith("HIPS.PROC", StringComparison.OrdinalIgnoreCase);
+               ruleId.StartsWith("HIPS.PROC", StringComparison.OrdinalIgnoreCase) ||
+               ruleId.StartsWith("HIPS.AGENT", StringComparison.OrdinalIgnoreCase) ||
+               ruleId.StartsWith("HIPS.INVESTIGATION", StringComparison.OrdinalIgnoreCase);
     }
 
     private static HipsEvent MapServiceEvent(ServiceEvent serviceEvent) => new(
@@ -1437,6 +1437,23 @@ public sealed class AppServices : IAsyncDisposable
         EnsureReady();
         EnsureElevatedSettings();
         Settings.ContinuousScanEnabled = enabled;
+
+        if (_useService)
+        {
+            await ApplyServiceConfigurationAsync().ConfigureAwait(false);
+        }
+
+        await SaveSettingsAsync().ConfigureAwait(false);
+        RaiseStateChanged();
+    }
+
+    public async Task SetInvestigationRemediateModeAsync(string mode)
+    {
+        EnsureReady();
+        EnsureElevatedSettings();
+        Settings.InvestigationRemediateMode = string.Equals(mode, "report", StringComparison.OrdinalIgnoreCase)
+            ? "report"
+            : "auto";
 
         if (_useService)
         {

@@ -120,6 +120,14 @@ if ($LASTEXITCODE -ne 0) {
     throw "pip install failed with exit code $LASTEXITCODE"
 }
 
+# Shared runtime for the decision agent (daemon imports numpy + onnxruntime).
+Write-Host 'Installing numpy and onnxruntime for the shared agent runtime'
+& $python -m pip install --no-warn-script-location --disable-pip-version-check `
+    --target $sitePackages 'numpy' 'onnxruntime'
+if ($LASTEXITCODE -ne 0) {
+    throw "pip install (agent runtime) failed with exit code $LASTEXITCODE"
+}
+
 & $python $decoyGenerator $sitePackages
 if ($LASTEXITCODE -ne 0) {
     throw "decoy generation failed with exit code $LASTEXITCODE"

@@ -1,6 +1,7 @@
 using Aegis.App.Services;
 using Aegis.Core.Quarantine;
 using Aegis.Core.Scanning;
+using Aegis.Core.Service;
 using Aegis.Hips;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -95,8 +96,8 @@ public sealed partial class HipsPage : Page
             AutoTerminateToggle.IsOn = settings.AutoTerminateProcesses;
             BlockInjectionToggle.IsOn = settings.RealtimeBlockInjection;
             BlockRegistryToggle.IsOn = settings.RealtimeBlockRegistry;
-            IdleScanToggle.IsOn = settings.IdleScanEnabled;
-            ContinuousScanToggle.IsOn = settings.ContinuousScanEnabled;
+            InvestigationModeBox.SelectedIndex = string.Equals(settings.InvestigationRemediateMode, "report",
+                StringComparison.OrdinalIgnoreCase) ? 0 : 1;
             AutoDeleteP7bToggle.IsOn = settings.AutoDeleteMaliciousP7b;
             FirewallBlockToggle.IsOn = settings.FirewallAutoBlockEnabled;
             SandboxToggle.IsOn = settings.SandboxEnabled;
@@ -185,31 +186,7 @@ public sealed partial class HipsPage : Page
         LastErrorText.Text = status?.LastError is { Length: > 0 } error
             ? "错误：" + error
             : services.HipsStartError ?? (services.UseService ? "由 NDAS 防护服务（LocalSystem）提供保护。" : "行为监控只记录本机事件。");
-        IdleScanStatusText.Text = !services.UseService
-            ? "闲时扫描：需要安装并运行 NDAS 防护服务。"
-            : status is null
-                ? "闲时扫描：—"
-                : !status.IdleScanEnabled
-                    ? "闲时扫描：已关闭。"
-                    : status.IdleScanIdleMinutes <= 0
-                        ? "闲时扫描：需要将 NDAS 防护服务升级到 0.0.2.0a。"
-                        : status.IdleScanActive
-                            ? "闲时扫描：正在扫描（系统空闲中）。"
-                            : status.LastIdleScanAt is { } lastScan
-                                ? $"闲时扫描：上次 {lastScan.ToLocalTime():MM-dd HH:mm}，扫描 {status.LastIdleScanFiles:N0} 个文件、发现 {status.LastIdleScanThreats:N0} 项。"
-                                : $"闲时扫描：等待系统空闲 {status.IdleScanIdleMinutes} 分钟。";
-        ContinuousScanStatusText.Text = !services.UseService
-            ? "持续后台扫描：需要安装并运行 NDAS 防护服务。"
-            : status is null
-                ? "持续后台扫描：—"
-                : status.ContinuousScanCpuPercent <= 0
-                    ? "持续后台扫描：需要将 NDAS 防护服务升级到 0.0.8.0a。"
-                    : !status.ContinuousScanEnabled
-                        ? "持续后台扫描：已关闭。"
-                        : status.ContinuousScanActive
-                            ? $"持续后台扫描：运行中（已扫描 {status.ContinuousScanFiles:N0} 个文件、发现 {status.ContinuousScanThreats:N0} 项，CPU ≤{status.ContinuousScanCpuPercent}%）"
-                              + (string.IsNullOrWhiteSpace(status.ContinuousScanCurrentPath) ? "。" : $"，当前：{status.ContinuousScanCurrentPath}")
-                            : "持续后台扫描：服务已启用，等待引擎启动。";
+        UpdateAgentStatus(services, status);
         SignatureSourceText.Text = services.Signatures is null
             ? "安全智能：尚未加载"
             : "安全智能来源：" + services.Signatures.Source;
@@ -463,47 +440,81 @@ public sealed partial class HipsPage : Page
         RefreshStatus();
     }
 
-    private async void IdleScanToggle_Toggled(object sender, RoutedEventArgs e)
+    private void UpdateAgentStatus(AppServices services, ServiceStatus? status)
     {
-        if (_suppressToggles || !_ready || IdleScanToggle.IsOn == App.Services.Settings.IdleScanEnabled)
+        if (!services.UseService)
         {
+            AgentStatusText.Text = "决策 agent：需要安装并运行 NDAS 防护服务。";
+            AgentInfo.IsOpen = false;
             return;
         }
 
-        var enabled = IdleScanToggle.IsOn;
-        try
+        if (status is null)
         {
-            await App.Services.SetIdleScanEnabledAsync(enabled);
-            ShowRealtimeInfo(InfoBarSeverity.Informational, enabled ? "闲时扫描已开启" : "闲时扫描已关闭",
-                enabled ? "系统空闲约 10 分钟后会扫描用户桌面/下载/启动、公用桌面及 Program Files、ProgramData；用户恢复操作时自动中止。" : "不再在空闲时自动扫描。");
-        }
-        catch (Exception exception)
-        {
-            ShowRealtimeInfo(InfoBarSeverity.Error, "保存失败", exception.Message);
-            RevertToggle(IdleScanToggle, !enabled);
+            AgentStatusText.Text = "决策 agent：—";
+            AgentInfo.IsOpen = false;
+            return;
         }
 
-        RefreshStatus();
+        var state = status.AgentState switch
+        {
+            AgentStates.Running => "运行中",
+            AgentStates.Starting => "启动中",
+            AgentStates.Restarting => "已停止，正在自动重启（扫描暂停）",
+            AgentStates.Stopped => "已停止（扫描暂停）",
+            AgentStates.Failed => "启动失败，扫描已停止",
+            AgentStates.Unavailable => "不可用",
+            _ => "未知"
+        };
+        AgentStatusText.Text =
+            $"决策 agent：{state} · 模型 {(status.AgentModelLoaded ? "已加载" : "规则模式")} · 决策 {status.AgentDecisionCount:N0} 次 · 队列 {status.AgentQueuedEvents} · 丢弃 {status.AgentDroppedEvents:N0}";
+        if (status.ActiveCaseCount > 0)
+        {
+            AgentStatusText.Text += $" · 进行中的病毒链追查 {status.ActiveCaseCount} 个";
+        }
+
+        var failing = status.AgentState is AgentStates.Failed or AgentStates.Restarting or AgentStates.Stopped;
+        AgentInfo.IsOpen = failing;
+        if (failing)
+        {
+            AgentInfo.Title = "防护已暂停";
+            AgentInfo.Message = string.IsNullOrWhiteSpace(status.AgentLastError)
+                ? "决策 agent 不可用，所有自动扫描已停止。"
+                : "决策 agent 不可用，所有自动扫描已停止：" + status.AgentLastError;
+        }
     }
 
-    private async void ContinuousScanToggle_Toggled(object sender, RoutedEventArgs e)
+    private async void InvestigationModeBox_Changed(object sender, SelectionChangedEventArgs e)
     {
-        if (_suppressToggles || !_ready || ContinuousScanToggle.IsOn == App.Services.Settings.ContinuousScanEnabled)
+        if (_suppressToggles || !_ready)
         {
             return;
         }
 
-        var enabled = ContinuousScanToggle.IsOn;
+        var mode = InvestigationModeBox.SelectedIndex == 0 ? "report" : "auto";
+        if (string.Equals(mode, App.Services.Settings.InvestigationRemediateMode, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
         try
         {
-            await App.Services.SetContinuousScanEnabledAsync(enabled);
-            ShowRealtimeInfo(InfoBarSeverity.Informational, enabled ? "持续后台扫描已开启" : "持续后台扫描已关闭",
-                enabled ? "扫描引擎会常驻轮转系统关键位置，CPU 占用控制在 12% 以内。" : "后台不再持续扫描。");
+            await App.Services.SetInvestigationRemediateModeAsync(mode);
         }
         catch (Exception exception)
         {
+            _suppressToggles = true;
+            try
+            {
+                InvestigationModeBox.SelectedIndex = string.Equals(App.Services.Settings.InvestigationRemediateMode,
+                    "report", StringComparison.OrdinalIgnoreCase) ? 0 : 1;
+            }
+            finally
+            {
+                _suppressToggles = false;
+            }
+
             ShowRealtimeInfo(InfoBarSeverity.Error, "保存失败", exception.Message);
-            RevertToggle(ContinuousScanToggle, !enabled);
         }
 
         RefreshStatus();
