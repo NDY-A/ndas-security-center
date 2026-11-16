@@ -103,7 +103,7 @@ public static partial class NetworkIndicatorExtractor
                     Kind = IndicatorKind.Domain,
                     Value = known.ToLowerInvariant(),
                     MatchedValue = match.Value.ToLowerInvariant(),
-                    Comment = "命中 NDY-A malware-egress-blocklist 域名"
+                    Comment = "命中病毒库域名"
                 });
             }
         }
@@ -128,7 +128,7 @@ public static partial class NetworkIndicatorExtractor
                     Kind = IndicatorKind.IpAddress,
                     Value = address.ToString(),
                     MatchedValue = address.ToString(),
-                    Comment = "命中 NDY-A malware-egress-blocklist IP"
+                    Comment = "命中病毒库 IP"
                 });
             }
         }

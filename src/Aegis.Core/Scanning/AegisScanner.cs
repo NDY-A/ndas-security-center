@@ -99,14 +99,14 @@ public sealed class AegisScanner
         {
             var matchedByMd5 = !Signatures.Hashes.ContainsKey(hashed.Sha256);
             var matchedAlgorithm = matchedByMd5 ? "MD5" : "SHA-256";
-            var signatureName = knownSignature.ThreatName ?? "Signature/NDY-A.Blocklist";
+            var signatureName = knownSignature.ThreatName ?? "病毒库/已知恶意样本";
             detections.Add(new Detection
             {
-                RuleId = "Sig.NDY-A.Blocklist",
+                RuleId = "Sig.病毒库",
                 Name = signatureName,
                 Description = knownSignature.ThreatName is { Length: > 0 }
-                    ? $"{matchedAlgorithm} 命中 NDY-A https://github.com/NDY-A/malware-egress-blocklist 定义：{knownSignature.ThreatName}。"
-                    : $"{matchedAlgorithm} 命中 NDY-A malware-egress-blocklist 的已知恶意样本。",
+                    ? $"{matchedAlgorithm} 命中病毒库定义：{knownSignature.ThreatName}。"
+                    : $"{matchedAlgorithm} 命中病毒库的已知恶意样本。",
                 Score = 100,
                 Severity = ThreatSeverity.Critical,
                 Source = DetectionSource.Hash,
@@ -150,6 +150,16 @@ public sealed class AegisScanner
             localScore < MaliciousThreshold)
         {
             ApplyMachineLearning(fullPath, detections, notes);
+            localScore = Math.Min(100, detections.Sum(detection => detection.Score));
+            hasDecisiveLocalDetection = localScore >= MaliciousThreshold;
+        }
+
+        if (options.RunHeuristics &&
+            kind == FileKind.Script &&
+            !hasDecisiveLocalDetection &&
+            localScore < MaliciousThreshold)
+        {
+            ApplyScriptIntelligence(fullPath, detections, notes);
             localScore = Math.Min(100, detections.Sum(detection => detection.Score));
             hasDecisiveLocalDetection = localScore >= MaliciousThreshold;
         }
@@ -314,6 +324,68 @@ public sealed class AegisScanner
                 Severity = ThreatSeverity.Low,
                 Source = DetectionSource.MachineLearning,
                 Evidence = $"p={probability:F4} model={MlEngine.ModelVersion}"
+            });
+        }
+    }
+
+    private static void ApplyScriptIntelligence(string path, List<Detection> detections, List<string> notes)
+    {
+        FileInfo info;
+        try
+        {
+            info = new FileInfo(path);
+        }
+        catch (Exception)
+        {
+            return;
+        }
+
+        // The engine mirrors the trainer's 256KB cap; larger scripts are skipped.
+        if (!info.Exists || info.Length == 0 || info.Length > 256 * 1024)
+        {
+            return;
+        }
+
+        byte[] data;
+        try
+        {
+            data = File.ReadAllBytes(path);
+        }
+        catch (Exception)
+        {
+            return;
+        }
+
+        if (!ScriptEngine.TryScoreBytes(data, out var probability, out _))
+        {
+            return;
+        }
+
+        notes.Add($"智能引擎 Lite（脚本专杀）评分：恶意概率 {probability:P1}（{ScriptEngine.ModelVersion}）。");
+        if (probability >= 0.8f)
+        {
+            detections.Add(new Detection
+            {
+                RuleId = "ML.Script.Model",
+                Name = "Heur:Script/Lite.HighRisk",
+                Description = $"智能引擎 Lite（脚本专杀）判定为高度可疑脚本（恶意概率 {probability:P1}）。该信号单独不构成最终判定，会与其他检测叠加。",
+                Score = 85,
+                Severity = ThreatSeverity.Medium,
+                Source = DetectionSource.MachineLearning,
+                Evidence = $"p={probability:F4} model={ScriptEngine.ModelVersion}"
+            });
+        }
+        else if (probability >= 0.5f)
+        {
+            detections.Add(new Detection
+            {
+                RuleId = "ML.Script.Model",
+                Name = "Heur:Script/Lite.Suspicious",
+                Description = $"智能引擎 Lite（脚本专杀）给出较高风险评分（恶意概率 {probability:P1}）。该信号单独不构成最终判定，会与其他检测叠加。",
+                Score = 72,
+                Severity = ThreatSeverity.Low,
+                Source = DetectionSource.MachineLearning,
+                Evidence = $"p={probability:F4} model={ScriptEngine.ModelVersion}"
             });
         }
     }

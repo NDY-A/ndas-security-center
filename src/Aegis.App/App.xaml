@@ -27,6 +27,17 @@
             <SolidColorBrush x:Key="AegisHeroOverlayBrush" Color="#1FFFFFFF" />
             <SolidColorBrush x:Key="AegisHeroTextBrush" Color="#F7FBFF" />
             <SolidColorBrush x:Key="AegisHeroSecondaryTextBrush" Color="#CFE6FA" />
+            <SolidColorBrush x:Key="AegisHeroTitleBrush" Color="#FFFFFF" />
+            <SolidColorBrush x:Key="AegisHeroButtonBackgroundBrush" Color="#FFFFFF" />
+            <SolidColorBrush x:Key="AegisHeroButtonForegroundBrush" Color="#0B3554" />
+            <SolidColorBrush x:Key="AegisHeroGhostBackgroundBrush" Color="#22FFFFFF" />
+            <SolidColorBrush x:Key="AegisHeroGhostForegroundBrush" Color="#FFFFFF" />
+            <SolidColorBrush x:Key="AegisHeroGhostBorderBrush" Color="#55FFFFFF" />
+            <SolidColorBrush x:Key="AegisHeroShieldFillBrush" Color="#18FFFFFF" />
+            <SolidColorBrush x:Key="AegisHeroShieldStrokeBrush" Color="#66FFFFFF" />
+            <SolidColorBrush x:Key="AegisHeroCheckBrush" Color="#7CF29B" />
+            <SolidColorBrush x:Key="AegisHeroAlertBrush" Color="#FFFFFF" />
+            <SolidColorBrush x:Key="AegisIconBrush" Color="#0F6CBD" />
 
             <LinearGradientBrush x:Key="AegisHeroBrush" StartPoint="0,0" EndPoint="1,1">
                 <GradientStop Color="#0A3554" Offset="0" />
@@ -48,6 +59,15 @@
                 <Setter Property="BorderThickness" Value="1" />
                 <Setter Property="CornerRadius" Value="14" />
                 <Setter Property="Padding" Value="22" />
+            </Style>
+
+            <Style x:Key="AegisBigCardStyle" TargetType="Border">
+                <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+                <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="14" />
+                <Setter Property="Padding" Value="24" />
+                <Setter Property="MinHeight" Value="210" />
             </Style>
 
             <Style x:Key="AegisPageTitleStyle" TargetType="TextBlock">

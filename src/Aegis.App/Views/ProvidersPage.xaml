@@ -1,0 +1,100 @@
+<Page
+    x:Class="Aegis.App.Views.ProvidersPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:controls="using:Aegis.App.Controls"
+    mc:Ignorable="d"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Padding="{StaticResource AegisPagePadding}" RowSpacing="18">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Spacing="4">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <HyperlinkButton Content="威胁和防护设置" Click="BreadcrumbSettings_Click"
+                                         FontSize="30" FontWeight="SemiBold" Padding="0" MinWidth="0"
+                                         Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                         HorizontalContentAlignment="Left" VerticalAlignment="Top" />
+                        <TextBlock Text="›" FontSize="30" FontWeight="Light"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                        <TextBlock Text="安全提供程序" Style="{StaticResource AegisPageTitleStyle}" />
+                    </StackPanel>
+                    <TextBlock Text="管理用于保护设备的应用和服务。" Style="{StaticResource AegisSecondaryTextStyle}" />
+                </StackPanel>
+                <Border Grid.Column="1" Style="{StaticResource AegisPillStyle}" VerticalAlignment="Top">
+                    <TextBlock Text="注册表读取" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </Border>
+            </Grid>
+
+            <Grid Grid.Row="1" ColumnSpacing="18">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="2.2*" />
+                    <ColumnDefinition Width="1*" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Spacing="14">
+                    <Border Style="{StaticResource AegisCardStyle}">
+                        <StackPanel Spacing="10">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <controls:SimpleShieldIcon Width="12" Height="12" VerticalAlignment="Center"
+                                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                                <TextBlock Text="病毒和威胁防护" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <StackPanel x:Name="AntivirusProviderList" Spacing="8" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource AegisCardStyle}">
+                        <StackPanel Spacing="10">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <FontIcon Glyph="&#xE701;" FontSize="13" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                                <TextBlock Text="防火墙" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <StackPanel x:Name="FirewallProviderList" Spacing="8" />
+                        </StackPanel>
+                    </Border>
+
+                    <HyperlinkButton Content="在 Microsoft Store 中查找安全应用" Click="OpenStore_Click"
+                                     Padding="0" FontSize="13" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Spacing="14">
+                    <Border Style="{StaticResource AegisCardStyle}">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="有什么疑问？" FontSize="16" FontWeight="SemiBold" />
+                            <TextBlock Text="安全提供程序来自 Windows 安全中心注册表，显示本机注册的防病毒和防火墙应用及其最近一次登记的状态。"
+                                       Style="{StaticResource AegisCaptionStyle}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource AegisCardStyle}">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="列表为什么是空的？" FontSize="16" FontWeight="SemiBold" />
+                            <TextBlock Text="只有向 Windows 安全中心注册的安全软件才会出现在这里；便携版或未注册的保护工具不会显示。"
+                                       Style="{StaticResource AegisCaptionStyle}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource AegisCardStyle}">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="状态说明" FontSize="16" FontWeight="SemiBold" />
+                            <TextBlock Text="“已打开/已关闭”由注册表中的状态位推断，可能与安全软件实时状态存在延迟。"
+                                       Style="{StaticResource AegisCaptionStyle}" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </ScrollViewer>
+</Page>

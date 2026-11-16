@@ -92,7 +92,7 @@ public sealed partial class UpdatePage : Page
 
         if (!services.IsInitialized)
         {
-            VersionText.Text = "安全智能版本：—";
+            VersionText.Text = "病毒库版本：—";
             CreatedText.Text = "版本创建时间：—";
             LastUpdatedText.Text = "上次更新时间：—";
             StateText.Text = services.InitializationError ?? "安全引擎正在初始化。";
@@ -106,10 +106,10 @@ public sealed partial class UpdatePage : Page
         var signatures = services.Signatures;
         if (signatures is null)
         {
-            VersionText.Text = "安全智能版本：—";
+            VersionText.Text = "病毒库版本：—";
             CreatedText.Text = "版本创建时间：—";
             LastUpdatedText.Text = "上次更新时间：—";
-            StateText.Text = "安全智能定义尚未加载。";
+            StateText.Text = "病毒库尚未加载。";
             CountsText.Text = "—";
             SourceText.Text = "—";
             FreshnessInfo.IsOpen = false;
@@ -117,14 +117,14 @@ public sealed partial class UpdatePage : Page
             return;
         }
 
-        VersionText.Text = "安全智能版本：" + signatures.Version;
+        VersionText.Text = "病毒库版本：" + signatures.Version;
         CreatedText.Text = "版本创建时间：" + signatures.FetchedAt.ToLocalTime().ToString("yyyy/M/d H:mm");
         var lastUpdate = services.LastSignatureCheckAt ?? signatures.FetchedAt;
         LastUpdatedText.Text = "上次更新时间：" + lastUpdate.ToLocalTime().ToString("yyyy/M/d H:mm");
-        StateText.Text = signatures.IsSeed ? "当前使用内置种子库" : "当前安全智能已更新";
+        StateText.Text = signatures.IsSeed ? "当前使用内置病毒库" : "当前病毒库已更新";
         CountsText.Text = $"{signatures.HashCount:N0} 哈希 · {signatures.DomainCount:N0} 域名 · {signatures.IpCount:N0} IP · {signatures.YaraRuleCount:N0} YARA"
                           + (signatures.Warnings.Count > 0 ? $" · {signatures.Warnings.Count} 条警告" : string.Empty);
-        SourceText.Text = "来源：" + signatures.Source;
+        SourceText.Text = "来源：病毒库";
 
         var definitionIsFresh = (DateTimeOffset.UtcNow - signatures.FetchedAt).TotalDays <= 5;
         var checkSucceeded = services.LastSignatureCheckUpToDate ||
@@ -137,7 +137,7 @@ public sealed partial class UpdatePage : Page
         else if (checkSucceeded && definitionIsFresh)
         {
             FreshnessInfo.Severity = InfoBarSeverity.Success;
-            FreshnessInfo.Title = "安全智能是最新的。";
+            FreshnessInfo.Title = "病毒库是最新的。";
             FreshnessInfo.Message = string.Empty;
             FreshnessInfo.IsOpen = true;
         }
@@ -159,7 +159,7 @@ public sealed partial class UpdatePage : Page
 
         LastCheckText.Text = services.LastSignatureCheckAt is { } checkedAt
             ? $"上次检查：{checkedAt.ToLocalTime():yyyy/M/d H:mm} · "
-              + (services.LastSignatureCheckUpToDate ? "安全智能是最新的" : services.LastSignatureCheckMessage ?? "检查完成")
+              + (services.LastSignatureCheckUpToDate ? "病毒库是最新的" : services.LastSignatureCheckMessage ?? "检查完成")
             : "尚未自动检查；开启后每 60 分钟检查一次。";
         if (!_updating)
         {
@@ -240,7 +240,7 @@ public sealed partial class UpdatePage : Page
                 UpdateProgressBar.Value = result.Success ? 100 : UpdateProgressBar.Value;
                 if (result.Success && result.IsUpToDate)
                 {
-                    StatusText.Text = "安全智能是最新的。";
+                    StatusText.Text = "病毒库是最新的。";
                 }
                 else if (result.Success)
                 {

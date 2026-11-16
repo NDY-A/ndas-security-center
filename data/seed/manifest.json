@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "version": "seed-2026.11.04",
+  "version": "seed-2026.11.12",
   "source": "https://github.com/NDY-A/malware-egress-blocklist",
-  "fetchedAt": "2026-11-04T19:45:00+08:00",
+  "fetchedAt": "2026-11-12T20:49:00+08:00",
   "isSeed": true,
   "files": {
     "hashes.csv": {
@@ -18,8 +18,8 @@
       "bytes": 4124
     },
     "special-paths.txt": {
-      "sha256": "1aae16faf7e3e0037c3a0f9597b8380b01182e68718d5c7e66c7a4f34a8b7ca3",
-      "bytes": 4818
+      "sha256": "66c0e3567628528d9862cbb149cd1524d0b86fa0f76eb697977768641de398e5",
+      "bytes": 14815
     },
     "yara/rules.yar": {
       "sha256": "78c25395acff7d0cdfe0f25c15297fe13584df85bc51d22191b9a2d079cf1596",
@@ -31,6 +31,6 @@
     "domains": 265,
     "ips": 154,
     "yaraRules": 1121,
-    "specialPaths": 60
+    "specialPaths": 177
   }
 }

@@ -1,5 +1,6 @@
 using Aegis.App.Services;
 using Aegis.Core.Quarantine;
+using Aegis.ML;
 using Aegis.Core.Scanning;
 using Aegis.Core.Service;
 using Aegis.Hips;
@@ -117,6 +118,7 @@ public sealed partial class HipsPage : Page
             {
                 AppThemePreference.Light => 1,
                 AppThemePreference.Dark => 2,
+                AppThemePreference.Defender => 3,
                 _ => 0
             };
         }
@@ -188,8 +190,8 @@ public sealed partial class HipsPage : Page
             : services.HipsStartError ?? (services.UseService ? "由 NDAS 防护服务（LocalSystem）提供保护。" : "行为监控只记录本机事件。");
         UpdateAgentStatus(services, status);
         SignatureSourceText.Text = services.Signatures is null
-            ? "安全智能：尚未加载"
-            : "安全智能来源：" + services.Signatures.Source;
+            ? "病毒库：尚未加载"
+            : "病毒库：" + services.Signatures.Version;
 
         var recent = services.HipsEvents;
         EventCountText.Text = services.HipsEventCount.ToString("N0");
@@ -442,16 +444,18 @@ public sealed partial class HipsPage : Page
 
     private void UpdateAgentStatus(AppServices services, ServiceStatus? status)
     {
+        ScriptEngineStatusText.Text = $"智能引擎 Lite（脚本专杀）：{ScriptEngine.Status}";
+
         if (!services.UseService)
         {
-            AgentStatusText.Text = "决策 agent：需要安装并运行 NDAS 防护服务。";
+            AgentStatusText.Text = "智能引擎 Pro：需要安装并运行 NDAS 防护服务。";
             AgentInfo.IsOpen = false;
             return;
         }
 
         if (status is null)
         {
-            AgentStatusText.Text = "决策 agent：—";
+            AgentStatusText.Text = "智能引擎 Pro：—";
             AgentInfo.IsOpen = false;
             return;
         }
@@ -467,7 +471,7 @@ public sealed partial class HipsPage : Page
             _ => "未知"
         };
         AgentStatusText.Text =
-            $"决策 agent：{state} · 模型 {(status.AgentModelLoaded ? "已加载" : "规则模式")} · 决策 {status.AgentDecisionCount:N0} 次 · 队列 {status.AgentQueuedEvents} · 丢弃 {status.AgentDroppedEvents:N0}";
+            $"智能引擎 Pro（不可关闭）：{state} · 模型 {(status.AgentModelLoaded ? "已加载" : "规则模式")} · 决策 {status.AgentDecisionCount:N0} 次 · 队列 {status.AgentQueuedEvents} · 丢弃 {status.AgentDroppedEvents:N0}";
         if (status.ActiveCaseCount > 0)
         {
             AgentStatusText.Text += $" · 进行中的病毒链追查 {status.ActiveCaseCount} 个";
@@ -479,8 +483,8 @@ public sealed partial class HipsPage : Page
         {
             AgentInfo.Title = "防护已暂停";
             AgentInfo.Message = string.IsNullOrWhiteSpace(status.AgentLastError)
-                ? "决策 agent 不可用，所有自动扫描已停止。"
-                : "决策 agent 不可用，所有自动扫描已停止：" + status.AgentLastError;
+                ? "智能引擎 Pro 不可用，所有自动扫描已停止。"
+                : "智能引擎 Pro 不可用，所有自动扫描已停止：" + status.AgentLastError;
         }
     }
 
@@ -786,6 +790,7 @@ public sealed partial class HipsPage : Page
         {
             1 => AppThemePreference.Light,
             2 => AppThemePreference.Dark,
+            3 => AppThemePreference.Defender,
             _ => AppThemePreference.System
         };
 

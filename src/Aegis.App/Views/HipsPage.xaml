@@ -148,11 +148,13 @@
                             <ComboBoxItem Content="自动处置" Tag="auto" />
                         </ComboBox>
                     </StackPanel>
-                    <TextBlock x:Name="AgentStatusText" Text="决策 agent：—" Style="{StaticResource AegisCaptionStyle}"
+                    <TextBlock x:Name="AgentStatusText" Text="智能引擎 Pro：—" Style="{StaticResource AegisCaptionStyle}"
                                TextWrapping="Wrap" />
+                    <TextBlock x:Name="ScriptEngineStatusText" Text="智能引擎 Lite（脚本专杀）：—"
+                               Style="{StaticResource AegisCaptionStyle}" TextWrapping="Wrap" />
                     <InfoBar x:Name="AgentInfo" IsOpen="False" IsClosable="True" Severity="Error" />
                     <InfoBar x:Name="RealtimeInfo" IsOpen="False" IsClosable="True" />
-                    <TextBlock Text="扫描目标、时机与处置由本地决策 agent（决策进程）统一调度；agent 不可用时自动扫描立即停止并报警。注入/侧载与注册表阻断是用户态启发式，不是内核驱动。"
+                    <TextBlock Text="扫描目标、时机与处置由智能引擎 Pro（决策进程）统一调度，无法关闭；不可用时自动扫描立即停止并报警。智能引擎 Lite 负责脚本文件检测，作为扫描信号叠加到判定中。注入/侧载与注册表阻断是用户态启发式，不是内核驱动。"
                                Style="{StaticResource AegisCaptionStyle}" />
                 </StackPanel>
             </Border>
@@ -327,6 +329,7 @@
                         <ComboBoxItem Content="跟随系统" />
                         <ComboBoxItem Content="浅色" />
                         <ComboBoxItem Content="深色" />
+                        <ComboBoxItem Content="Windows Defender" />
                     </ComboBox>
                     <TextBlock x:Name="DataRootText" Text="—" Style="{StaticResource AegisCaptionStyle}" />
                     <TextBlock x:Name="SettingsFileText" Text="—" Style="{StaticResource AegisCaptionStyle}" />

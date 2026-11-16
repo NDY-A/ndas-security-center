@@ -108,20 +108,29 @@ public sealed partial class MainWindow : Window
 
     public void ApplyTheme(AppThemePreference theme)
     {
+        ThemeManager.ApplyDefenderPalette(theme == AppThemePreference.Defender);
+
         if (Content is FrameworkElement root)
         {
             root.RequestedTheme = theme switch
             {
                 AppThemePreference.Light => ElementTheme.Light,
-                AppThemePreference.Dark => ElementTheme.Dark,
+                AppThemePreference.Dark or AppThemePreference.Defender => ElementTheme.Dark,
                 _ => ElementTheme.Default
             };
+        }
+
+        if (ContentFrame.Content?.GetType() is { } currentPage)
+        {
+            ContentFrame.Navigate(currentPage);
         }
     }
 
     private static Type? ResolvePage(string tag) => tag switch
     {
         "dashboard" => typeof(DashboardPage),
+        "scan" => typeof(ScanPage),
+        "providers" => typeof(ProvidersPage),
         "hips" => typeof(HipsPage),
         "update" => typeof(UpdatePage),
         "automation" => typeof(AutomationPage),

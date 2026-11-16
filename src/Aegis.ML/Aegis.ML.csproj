@@ -19,5 +19,9 @@
           Condition="Exists('..\..\data\seed\ml\pe-ml.onnx')"
           CopyToOutputDirectory="PreserveNewest"
           Link="ML\pe-ml.onnx" />
+    <None Include="..\..\data\seed\ml\script-ngram.json"
+          Condition="Exists('..\..\data\seed\ml\script-ngram.json')"
+          CopyToOutputDirectory="PreserveNewest"
+          Link="ML\script-ngram.json" />
   </ItemGroup>
 </Project>

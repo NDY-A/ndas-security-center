@@ -1,7 +1,7 @@
 param(
     [string]$Configuration = 'Release',
-    [string]$Version = '0.0.9.0',
-    [string]$DisplayVersion = 'rs_p0.0.9.0a',
+    [string]$Version = '0.0.11.0',
+    [string]$DisplayVersion = 'rs_p0.0.11.0a',
     [string]$PublishFolderName = 'publish',
     [switch]$SkipSandboxPrepare,
     [switch]$SkipAgentPrepare
@@ -18,6 +18,17 @@ $agentDir = Join-Path $root 'dist\agent'
 $msiPath = Join-Path $root "dist\NDAS-$DisplayVersion-win-x64.msi"
 
 $guardDir = Join-Path $root 'dist\guard'
+
+$python = Get-Command python -ErrorAction SilentlyContinue
+if ($python) {
+    & $python.Source (Join-Path $root 'tools\verify-seed.py')
+    if ($LASTEXITCODE -ne 0) {
+        throw 'seed manifest validation failed; update data\seed\manifest.json'
+    }
+}
+else {
+    Write-Warning 'python not found; skipping seed manifest validation'
+}
 
 $nativeBuild = Join-Path $root 'native\AegisMl\build.ps1'
 if (Test-Path -LiteralPath $nativeBuild) {

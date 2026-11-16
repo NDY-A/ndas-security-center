@@ -6,7 +6,8 @@ public enum AppThemePreference
 {
     System,
     Light,
-    Dark
+    Dark,
+    Defender
 }
 
 public sealed class AppSettings

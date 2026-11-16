@@ -26,18 +26,18 @@
                                VerticalAlignment="Center" />
                     <TextBlock Text="保护更新" Style="{StaticResource AegisPageTitleStyle}" />
                 </StackPanel>
-                <TextBlock Text="查看有关安全智能版本的信息，并检查是否有更新。"
+                <TextBlock Text="查看有关病毒库版本的信息，并检查是否有更新。"
                            Style="{StaticResource AegisSecondaryTextStyle}" />
             </StackPanel>
 
             <Border Grid.Row="1" Style="{StaticResource AegisCardStyle}">
                 <StackPanel Spacing="12">
-                    <TextBlock Text="安全智能" Style="{StaticResource AegisSectionTitleStyle}" />
-                    <TextBlock Text="NDAS 使用安全智能来检测威胁。应用会尝试自动下载最新的智能，以保护你的设备免受最新威胁的侵害。你也可以手动检查更新。"
+                    <TextBlock Text="病毒库" Style="{StaticResource AegisSectionTitleStyle}" />
+                    <TextBlock Text="NDAS 使用病毒库来检测威胁。应用会尝试自动下载最新的病毒库，以保护你的设备免受最新威胁的侵害。你也可以手动检查更新。"
                                Style="{StaticResource AegisSecondaryTextStyle}" />
 
                     <StackPanel Spacing="3">
-                        <TextBlock x:Name="VersionText" Text="安全智能版本：—" FontSize="15" FontWeight="SemiBold" />
+                        <TextBlock x:Name="VersionText" Text="病毒库版本：—" FontSize="15" FontWeight="SemiBold" />
                         <TextBlock x:Name="CreatedText" Text="版本创建时间：—" Style="{StaticResource AegisCaptionStyle}" />
                         <TextBlock x:Name="LastUpdatedText" Text="上次更新时间：—" Style="{StaticResource AegisCaptionStyle}" />
                     </StackPanel>

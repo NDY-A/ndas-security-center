@@ -1,7 +1,7 @@
 param(
     [string]$OutputDir = '',
     [string]$AgentSourceDir = '',
-    [string]$Version = '0.0.9.0a',
+    [string]$Version = '0.0.11.0a',
     [switch]$SkipModel
 )
 

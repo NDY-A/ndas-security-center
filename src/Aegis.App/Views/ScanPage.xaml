@@ -4,13 +4,13 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:controls="using:Aegis.App.Controls"
     mc:Ignorable="d"
     Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <Grid Padding="{StaticResource AegisPagePadding}" RowSpacing="18">
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
@@ -29,75 +29,200 @@
                                          HorizontalContentAlignment="Left" VerticalAlignment="Top" />
                         <TextBlock Text="›" FontSize="30" FontWeight="Light"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
-                        <TextBlock Text="扫描" Style="{StaticResource AegisPageTitleStyle}" />
+                        <TextBlock Text="病毒和威胁防护" Style="{StaticResource AegisPageTitleStyle}" />
                     </StackPanel>
-                    <TextBlock Text="哈希签名、启发式与云信誉三层检测，只读扫描，不自动处置文件。"
-                               Style="{StaticResource AegisSecondaryTextStyle}" />
+                    <TextBlock Text="保护你的设备免受威胁。" Style="{StaticResource AegisSecondaryTextStyle}" />
                 </StackPanel>
                 <Border Grid.Column="1" Style="{StaticResource AegisPillStyle}" VerticalAlignment="Top">
-                    <TextBlock Text="按需扫描" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Text="按需防护" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 </Border>
             </Grid>
 
-            <Border Grid.Row="1" Style="{StaticResource AegisCardStyle}">
+            <Grid Grid.Row="1" ColumnSpacing="18">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="2.2*" />
+                    <ColumnDefinition Width="1*" />
+                </Grid.ColumnDefinitions>
+
                 <StackPanel Spacing="14">
-                    <TextBlock Text="扫描范围" Style="{StaticResource AegisSectionTitleStyle}" />
+                    <Border x:Name="ScanCard" Style="{StaticResource AegisCardStyle}">
+                        <StackPanel Spacing="12">
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid Width="23" Height="23" VerticalAlignment="Top">
+                                    <controls:SimpleShieldIcon Width="23" Height="23" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                                    <Border x:Name="ScanBadgeBorder" Width="10" Height="10" CornerRadius="999"
+                                            Background="#107C10" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                            BorderBrush="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderThickness="1">
+                                        <FontIcon x:Name="ScanBadgeIcon" Glyph="&#xE73E;" FontSize="5" Foreground="White" />
+                                    </Border>
+                                </Grid>
+                                <StackPanel Grid.Column="1" Spacing="3">
+                                    <TextBlock Text="病毒和威胁防护状态" FontSize="16" FontWeight="SemiBold" />
+                                    <TextBlock x:Name="ScanHeroTitle" Text="无需执行任何操作" FontSize="14" FontWeight="SemiBold" />
+                                    <TextBlock x:Name="ScanHeroDetail" Text="你的设备受到 NDAS 保护。"
+                                               Style="{StaticResource AegisCaptionStyle}" />
+                                </StackPanel>
+                            </Grid>
 
-                    <RadioButtons x:Name="ProfileSelector" SelectedIndex="0" SelectionChanged="Profile_SelectionChanged">
-                        <RadioButton Content="快速扫描（桌面、下载、临时目录、启动项）" Tag="quick" />
-                        <RadioButton Content="完整扫描（本地固定磁盘）" Tag="full" />
-                        <RadioButton Content="自定义路径" Tag="custom" />
-                    </RadioButtons>
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <Button x:Name="StartButton" Content="快速扫描" Click="StartScan_Click"
+                                        Style="{StaticResource AccentButtonStyle}" />
+                                <Button x:Name="CancelButton" Content="取消" Click="CancelScan_Click" IsEnabled="False" />
+                                <TextBlock x:Name="StatusText" Text="选择范围后开始扫描。"
+                                           Style="{StaticResource AegisCaptionStyle}" VerticalAlignment="Center" />
+                            </StackPanel>
 
-                    <Grid ColumnSpacing="10">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBox x:Name="CustomPathBox" IsEnabled="False"
-                                 PlaceholderText="选择要扫描的文件或文件夹" />
-                        <Button x:Name="BrowseButton" Grid.Column="1" Content="浏览…"
-                                IsEnabled="False" Click="Browse_Click" />
-                    </Grid>
+                            <ProgressBar x:Name="ScanProgressBar" IsIndeterminate="True" Visibility="Collapsed" />
+                            <TextBlock x:Name="ProgressTitle" Text="尚未开始" FontWeight="SemiBold" />
+                            <TextBlock x:Name="ProgressDetail" Text="等待启动扫描任务。"
+                                       Style="{StaticResource AegisCaptionStyle}" TextTrimming="CharacterEllipsis" />
 
-                    <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,4,0,0">
-                        <Button x:Name="StartButton" Content="开始扫描" Click="StartScan_Click"
-                                Style="{StaticResource AccentButtonStyle}" />
-                        <Button x:Name="CancelButton" Content="取消" Click="CancelScan_Click" IsEnabled="False" />
-                        <TextBlock x:Name="StatusText" Text="选择范围后开始扫描。"
-                                   Style="{StaticResource AegisCaptionStyle}" VerticalAlignment="Center" />
-                    </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="30">
+                                <StackPanel>
+                                    <TextBlock x:Name="FilesScannedText" Text="0" Style="{StaticResource AegisMetricStyle}" />
+                                    <TextBlock Text="已扫描文件" Style="{StaticResource AegisCaptionStyle}" />
+                                </StackPanel>
+                                <StackPanel>
+                                    <TextBlock x:Name="DetectionsText" Text="0" Style="{StaticResource AegisMetricStyle}" />
+                                    <TextBlock Text="发现项" Style="{StaticResource AegisCaptionStyle}" />
+                                </StackPanel>
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" Spacing="18" Margin="0,4,0,0">
+                                <HyperlinkButton Content="扫描选项" Click="ScrollToScanOptions_Click" Padding="0" FontSize="13" />
+                                <HyperlinkButton Content="允许的威胁" Click="NavigateHips_Click" Padding="0" FontSize="13" />
+                                <HyperlinkButton Content="保护历史记录" Click="ScrollToResults_Click" Padding="0" FontSize="13" />
+                            </StackPanel>
+
+                            <InfoBar x:Name="ScanInfo" IsOpen="False" IsClosable="True" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource AegisCardStyle}">
+                        <StackPanel Spacing="8">
+                            <Grid ColumnSpacing="10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid Width="18" Height="18" VerticalAlignment="Center">
+                                    <FontIcon Glyph="&#xE713;" FontSize="14"
+                                              Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    <Border Width="8" Height="8" CornerRadius="999" Background="#107C10"
+                                            HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                            BorderBrush="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderThickness="1">
+                                        <FontIcon Glyph="&#xE73E;" FontSize="5" Foreground="White" />
+                                    </Border>
+                                </Grid>
+                                <TextBlock Grid.Column="1" Text="“病毒和威胁防护”设置" FontSize="16" FontWeight="SemiBold"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                            <TextBlock x:Name="ScanRealtimeText" Text="无需执行任何操作。" Style="{StaticResource AegisCaptionStyle}" />
+                            <HyperlinkButton Content="管理设置" Click="NavigateHips_Click" Padding="0" FontSize="13" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource AegisCardStyle}">
+                        <StackPanel Spacing="8">
+                            <Grid ColumnSpacing="10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid Width="18" Height="18" VerticalAlignment="Center">
+                                    <FontIcon Glyph="&#xE895;" FontSize="16" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                                    <Border Width="8" Height="8" CornerRadius="999" Background="#107C10"
+                                            HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                            BorderBrush="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderThickness="1">
+                                        <FontIcon Glyph="&#xE73E;" FontSize="5" Foreground="White" />
+                                    </Border>
+                                </Grid>
+                                <TextBlock Grid.Column="1" Text="病毒和威胁防护更新" FontSize="16" FontWeight="SemiBold"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                            <TextBlock x:Name="ScanDbStateText" Text="病毒库是最新的。" Style="{StaticResource AegisCaptionStyle}" />
+                            <TextBlock x:Name="ScanDbVersionText" Text="—" Style="{StaticResource AegisCaptionStyle}" />
+                            <HyperlinkButton Content="保护更新" Click="NavigateUpdate_Click" Padding="0" FontSize="13" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource AegisCardStyle}">
+                        <StackPanel Spacing="8">
+                            <Grid ColumnSpacing="10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid Width="18" Height="18" VerticalAlignment="Center">
+                                    <FontIcon Glyph="&#xE8B7;" FontSize="16" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                                    <Border Width="8" Height="8" CornerRadius="999" Background="#107C10"
+                                            HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                            BorderBrush="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderThickness="1">
+                                        <FontIcon Glyph="&#xE73E;" FontSize="5" Foreground="White" />
+                                    </Border>
+                                </Grid>
+                                <TextBlock Grid.Column="1" Text="隔离区" FontSize="16" FontWeight="SemiBold"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                            <TextBlock x:Name="ScanQuarantineText" Text="隔离区为空。" Style="{StaticResource AegisCaptionStyle}" />
+                            <HyperlinkButton Content="管理隔离区" Click="NavigateHips_Click" Padding="0" FontSize="13" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
-            </Border>
 
-            <Border Grid.Row="2" Style="{StaticResource AegisCardStyle}">
-                <StackPanel Spacing="10">
-                    <TextBlock Text="扫描进度" Style="{StaticResource AegisSectionTitleStyle}" />
-                    <ProgressBar x:Name="ScanProgressBar" IsIndeterminate="True" Visibility="Collapsed" />
-                    <TextBlock x:Name="ProgressTitle" Text="尚未开始" FontWeight="SemiBold" />
-                    <TextBlock x:Name="ProgressDetail" Text="等待启动扫描任务。"
-                               Style="{StaticResource AegisCaptionStyle}" TextTrimming="CharacterEllipsis" />
+                <StackPanel Grid.Column="1" Spacing="14">
+                    <Border x:Name="ScanOptionsCard" Style="{StaticResource AegisCardStyle}">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="扫描选项" FontSize="16" FontWeight="SemiBold" />
+                            <RadioButtons x:Name="ProfileSelector" SelectedIndex="0" SelectionChanged="Profile_SelectionChanged">
+                                <RadioButton Content="快速扫描" Tag="quick" />
+                                <RadioButton Content="完整扫描" Tag="full" />
+                                <RadioButton Content="自定义路径" Tag="custom" />
+                            </RadioButtons>
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="CustomPathBox" IsEnabled="False"
+                                         PlaceholderText="选择要扫描的文件或文件夹" />
+                                <Button x:Name="BrowseButton" Grid.Column="1" Content="浏览…"
+                                        IsEnabled="False" Click="Browse_Click" />
+                            </Grid>
+                            <TextBlock Text="哈希签名、启发式与云信誉三层检测，只读扫描，不自动处置文件。"
+                                       Style="{StaticResource AegisCaptionStyle}" />
+                        </StackPanel>
+                    </Border>
 
-                    <StackPanel Orientation="Horizontal" Spacing="30">
-                        <StackPanel>
-                            <TextBlock x:Name="FilesScannedText" Text="0" Style="{StaticResource AegisMetricStyle}" />
-                            <TextBlock Text="已扫描文件" Style="{StaticResource AegisCaptionStyle}" />
+                    <Border Style="{StaticResource AegisCardStyle}">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="谁在保护我？" FontSize="16" FontWeight="SemiBold" />
+                            <HyperlinkButton Content="管理提供程序" Click="NavigateProviders_Click" Padding="0" FontSize="13" />
                         </StackPanel>
-                        <StackPanel>
-                            <TextBlock x:Name="DetectionsText" Text="0" Style="{StaticResource AegisMetricStyle}" />
-                            <TextBlock Text="发现项" Style="{StaticResource AegisCaptionStyle}" />
+                    </Border>
+
+                    <Border Style="{StaticResource AegisCardStyle}">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="有什么疑问？" FontSize="16" FontWeight="SemiBold" />
+                            <TextBlock Text="遇到可疑文件或提醒，先运行一次快速扫描；扫描结果可隔离、删除或加入白名单。"
+                                       Style="{StaticResource AegisCaptionStyle}" />
+                            <HyperlinkButton Content="检查病毒库更新" Click="NavigateUpdate_Click" Padding="0" FontSize="13" />
                         </StackPanel>
-                        <StackPanel>
-                            <TextBlock x:Name="SkippedText" Text="0" Style="{StaticResource AegisMetricStyle}" />
-                            <TextBlock Text="已跳过" Style="{StaticResource AegisCaptionStyle}" />
-                        </StackPanel>
-                    </StackPanel>
+                    </Border>
                 </StackPanel>
-            </Border>
+            </Grid>
 
-            <Border Grid.Row="3" Style="{StaticResource AegisCardStyle}">
+            <Border x:Name="ResultsCard" Grid.Row="2" Style="{StaticResource AegisCardStyle}">
                 <StackPanel Spacing="12">
-                    <TextBlock Text="扫描结果" Style="{StaticResource AegisSectionTitleStyle}" />
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="保护历史记录" Style="{StaticResource AegisSectionTitleStyle}" />
+                        <TextBlock x:Name="LastScanText" Text="尚未运行扫描。" Style="{StaticResource AegisCaptionStyle}" />
+                    </StackPanel>
 
                     <ListView x:Name="ResultsList" SelectionMode="None" MaxHeight="420" Visibility="Collapsed">
                         <ListView.ItemTemplate>
@@ -106,6 +231,7 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="62" />
                                         <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <Border Background="{Binding BadgeBackground}" CornerRadius="999" Padding="9,4" VerticalAlignment="Top">
@@ -120,6 +246,15 @@
                                     </StackPanel>
                                     <TextBlock Grid.Column="2" Text="{Binding ScoreText}" Style="{StaticResource AegisCaptionStyle}"
                                                VerticalAlignment="Top" />
+                                    <StackPanel Grid.Column="3" Spacing="4" VerticalAlignment="Top" HorizontalAlignment="Right">
+                                        <StackPanel Orientation="Horizontal" Spacing="6" Visibility="{Binding ActionsVisibility}">
+                                            <Button Content="隔离" Click="QuarantineFinding_Click" Padding="10,4" FontSize="12" />
+                                            <Button Content="删除" Click="DeleteFinding_Click" Padding="10,4" FontSize="12" />
+                                            <Button Content="允许" Click="AllowFinding_Click" Padding="10,4" FontSize="12" />
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding ActionStatus}" Style="{StaticResource AegisCaptionStyle}"
+                                                   Visibility="{Binding StatusVisibility}" HorizontalAlignment="Right" />
+                                    </StackPanel>
                                 </Grid>
                             </DataTemplate>
                         </ListView.ItemTemplate>
@@ -134,8 +269,7 @@
                         </StackPanel>
                     </Border>
 
-                    <InfoBar x:Name="ScanInfo" IsOpen="False" IsClosable="True" />
-                    <TextBlock Text="本版本只检测并呈现结果，不会自动删除、隔离或修改文件。云查询只发送文件 SHA-256、大小和判定请求，不发送文件内容或本地路径。"
+                    <TextBlock Text="扫描结果可执行隔离、删除或加入白名单；隔离文件可在“威胁和防护设置 &gt; 隔离区”还原。云查询只发送文件 SHA-256、大小和判定请求，不发送文件内容或本地路径。"
                                Style="{StaticResource AegisCaptionStyle}" />
                 </StackPanel>
             </Border>
