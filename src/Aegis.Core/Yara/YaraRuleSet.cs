@@ -27,6 +27,7 @@ public sealed class YaraRuleSet
         foreach (var rule in rules)
         {
             var indices = new int[rule.Strings.Count];
+            var mandatory = YaraMandatoryStrings.Collect(rule.Condition);
             var candidates = new List<(int GlobalIndex, int Length)>();
             for (var index = 0; index < rule.Strings.Count; index++)
             {
@@ -34,6 +35,13 @@ public sealed class YaraRuleSet
                 var globalIndex = definitions.Count;
                 definitions.Add(definition);
                 indices[index] = globalIndex;
+
+                // 只有"条件成立时必然命中"的字符串才能进入预过滤候选。
+                // 用可选字符串（N of them / any of them / or 分支）做过滤会直接丢掉检测。
+                if (!mandatory.Contains(index))
+                {
+                    continue;
+                }
 
                 if (definition.Kind == YaraStringKind.Text && !string.IsNullOrEmpty(definition.Text))
                 {
@@ -181,12 +189,10 @@ public sealed class YaraRuleSet
             // skip the rule before paying for hex/regex evaluation. Rules made up only of
             // hex/regex strings have no cheap fingerprint and are skipped to keep per-file
             // scan time bounded; PE-only rules without strings are still evaluated.
-            if (compiled.Rule.Strings.Count > 0)
+            // AnchorGlobals 只包含"必要条件"字符串；为空表示无法预过滤，必须完整求值。
+            if (compiled.AnchorGlobals.Length > 0 && !AnyTextMatch(state, compiled.AnchorGlobals))
             {
-                if (compiled.AnchorGlobals.Length == 0 || !AnyTextMatch(state, compiled.AnchorGlobals))
-                {
-                    continue;
-                }
+                continue;
             }
 
             candidates++;

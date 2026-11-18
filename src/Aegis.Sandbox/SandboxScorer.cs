@@ -39,6 +39,22 @@ public static class SandboxScorer
         "NtSetInformationThread", "OutputDebugStringW", "GetTickCount", "GetTickCount64"
     };
 
+    // Environment-fingerprinting APIs grouped by what they reveal. A sample
+    // touching several distinct groups is profiling the machine (anti-sandbox).
+    private static readonly Dictionary<string, string> EnvironmentProbeApis = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["GetComputerNameW"] = "身份", ["GetComputerNameA"] = "身份",
+        ["GetComputerNameExW"] = "身份", ["GetComputerNameExA"] = "身份",
+        ["GetUserNameW"] = "身份", ["GetUserNameA"] = "身份",
+        ["GetSystemFirmwareTable"] = "固件",
+        ["GetAdaptersInfo"] = "网卡", ["GetAdaptersAddresses"] = "网卡",
+        ["CreateToolhelp32Snapshot"] = "进程枚举",
+        ["GetTimeZoneInformation"] = "时区",
+        ["GetSystemMetrics"] = "桌面",
+        ["GlobalMemoryStatusEx"] = "内存", ["GlobalMemoryStatus"] = "内存",
+        ["GetNativeSystemInfo"] = "CPU"
+    };
+
     private static readonly HashSet<string> ProcessCreateApis = new(StringComparer.OrdinalIgnoreCase)
     {
         "CreateProcessW", "CreateProcessA", "CreateProcessAsUserW", "CreateProcessAsUserA",
@@ -96,12 +112,25 @@ public static class SandboxScorer
         var textParts = new List<string>();
         textParts.AddRange(report.Strings);
         textParts.AddRange(report.DroppedFiles);
+        var probeCategories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var wineProbe = false;
 
         foreach (var item in report.Events)
         {
             var api = NormalizeApi(item.ApiName);
             if (api.Length > 0)
             {
+                if (EnvironmentProbeApis.TryGetValue(api, out var probeCategory))
+                {
+                    probeCategories.Add(probeCategory);
+                }
+
+                if (api.Equals("GetProcAddress", StringComparison.OrdinalIgnoreCase) &&
+                    item.Arguments.Any(argument => argument.Contains("wine_", StringComparison.OrdinalIgnoreCase)))
+                {
+                    wineProbe = true;
+                }
+
                 if (InjectionApis.Contains(api))
                 {
                     AddSignal("注入", 35, api);
@@ -206,6 +235,16 @@ public static class SandboxScorer
             }
         }
 
+        var probing = wineProbe || probeCategories.Count >= 3;
+        if (wineProbe)
+        {
+            AddSignal("反沙箱探测", 30, "GetProcAddress 查询 wine_get_version（Wine/模拟器探测）");
+        }
+        else if (probeCategories.Count >= 3)
+        {
+            AddSignal("反沙箱探测", 20, "多类环境探测：" + string.Join("、", probeCategories));
+        }
+
         var indicators = NetworkIndicatorExtractor.Extract(
             string.Join('\n', textParts.Take(12_000)), signatures.Domains, signatures.IpAddresses);
         if (indicators.Count > 0)
@@ -225,6 +264,12 @@ public static class SandboxScorer
         var total = Math.Min(100, signals.Sum(signal => signal.Score));
         var critical = signals.Any(signal => signal.Category is "注入" or "凭据访问" or "已知网络 IOC");
 
+        // A run that produces no behavior signal and drops nothing tells us
+        // nothing about the sample: the emulator may not support it, or the
+        // sample bailed out after detecting the sandbox. API volume alone
+        // (loader/RTL initialization calls) must not count as behavior.
+        var insufficientBehavior = report.DroppedFiles.Count == 0 && signals.Length == 0;
+
         ThreatVerdict verdict;
         if (total >= 85 && signals.Length >= 3 && critical)
         {
@@ -240,15 +285,16 @@ public static class SandboxScorer
         }
         else
         {
-            verdict = ThreatVerdict.Clean;
+            verdict = probing || insufficientBehavior ? ThreatVerdict.Attention : ThreatVerdict.Clean;
         }
 
         var errors = report.SessionErrors.Concat(report.RunErrors).ToArray();
         var incomplete = errors.Any(error =>
             error.Contains("timeout", StringComparison.OrdinalIgnoreCase) ||
             error.Contains("unsupported_api", StringComparison.OrdinalIgnoreCase) ||
-            error.Contains("internal_error", StringComparison.OrdinalIgnoreCase));
-        var confidence = incomplete ? (total >= 85 ? "Medium" : "Low") : "High";
+            error.Contains("internal_error", StringComparison.OrdinalIgnoreCase) ||
+            error.Contains("_ERR_", StringComparison.OrdinalIgnoreCase));
+        var confidence = insufficientBehavior ? "Low" : (incomplete ? (total >= 85 ? "Medium" : "Low") : "High");
 
         var threatName = verdict switch
         {
@@ -270,6 +316,16 @@ public static class SandboxScorer
         if (incomplete)
         {
             summary += "，模拟不完整";
+        }
+
+        if (insufficientBehavior)
+        {
+            summary += "，未观测到有效行为（模拟器可能不支持该样本或样本反沙箱），降级为待复核";
+            var exitReason = report.Engine?.Exit;
+            if (!string.IsNullOrWhiteSpace(exitReason) && !string.Equals(exitReason, "ok", StringComparison.OrdinalIgnoreCase))
+            {
+                summary += "，退出原因：" + exitReason;
+            }
         }
 
         var effectiveDuration = duration > TimeSpan.Zero

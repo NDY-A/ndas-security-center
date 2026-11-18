@@ -901,7 +901,8 @@ public static class YaraParser
                     continue;
                 }
 
-                if (char.IsLetterOrDigit(character) || character is ' ' or '_' or '-' or '/' or '@' or ':' or '.')
+                // '.' 在正则里是通配符，不是字面量：遇到它必须停止提取
+                if (char.IsLetterOrDigit(character) || character is ' ' or '_' or '-' or '/' or '@' or ':')
                 {
                     builder.Append(character);
                     index++;

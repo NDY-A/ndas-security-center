@@ -8,7 +8,7 @@ public sealed class SandboxOptions
     public bool AutoRemediate { get; init; } = true;
     public bool AutoBlockNetwork { get; init; } = true;
     public long MinFileSizeBytes { get; init; } = 4 * 1024;
-    public long MaxFileSizeBytes { get; init; } = 32L * 1024 * 1024;
+    public long MaxFileSizeBytes { get; init; } = 500L * 1024 * 1024;
     public int MaxRuntimeSeconds { get; init; } = 60;
     public int QueueCapacity { get; init; } = 64;
     public int MaxSubmissionsPer10Minutes { get; init; } = 6;
@@ -41,6 +41,12 @@ public sealed record SandboxJob(
     DateTimeOffset QueuedAt);
 
 public sealed record SandboxSignal(string Category, string Detail, int Score);
+
+public sealed record SandboxEngineStats(
+    bool Hardened,
+    int HooksApplied,
+    int ApiCount,
+    string? Exit);
 
 public sealed class SandboxResult
 {

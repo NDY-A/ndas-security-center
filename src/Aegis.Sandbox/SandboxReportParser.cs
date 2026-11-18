@@ -14,6 +14,7 @@ public sealed class ParsedSandboxReport
     public List<string> Strings { get; } = new();
     public List<string> DroppedFiles { get; } = new();
     public List<ParsedSandboxEvent> Events { get; } = new();
+    public SandboxEngineStats? Engine { get; set; }
 }
 
 public sealed class ParsedSandboxEvent
@@ -57,8 +58,24 @@ public static class SandboxReportParser
 
         ReadErrors(root, report.SessionErrors);
         ReadStrings(root, report);
+        ReadEngineStats(root, report);
         ReadEntryPoints(root, report);
         return report;
+    }
+
+    private static void ReadEngineStats(JsonElement root, ParsedSandboxReport report)
+    {
+        if (!root.TryGetProperty("emulator_stats", out var stats) || stats.ValueKind != JsonValueKind.Object)
+        {
+            return;
+        }
+
+        var hardened = stats.TryGetProperty("hardened", out var flag) && flag.ValueKind == JsonValueKind.True;
+        report.Engine = new SandboxEngineStats(
+            hardened,
+            (int)GetDouble(stats, "hooks_applied"),
+            (int)GetDouble(stats, "api_count"),
+            GetString(stats, "exit"));
     }
 
     private static void ReadEntryPoints(JsonElement root, ParsedSandboxReport report)

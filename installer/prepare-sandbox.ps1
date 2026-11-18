@@ -17,6 +17,9 @@ New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
 
 $componentJson = Join-Path $OutputDir 'component.json'
 $runnerSource = Join-Path $installerDir 'sandbox\ndas_sandbox_runner.py'
+$profileSource = Join-Path $installerDir 'sandbox\ndas_env_profile.py'
+$hooksSource = Join-Path $installerDir 'sandbox\ndas_antievasion_hooks.py'
+$speakeasyPatcher = Join-Path $installerDir 'sandbox\patch-speakeasy.py'
 $decoyGenerator = Join-Path $installerDir 'sandbox\make_decoys.py'
 $stampPath = Join-Path $OutputDir 'build-stamp.json'
 if ((Test-Path -LiteralPath $componentJson) -and -not $Force) {
@@ -131,6 +134,12 @@ if ($LASTEXITCODE -ne 0) {
 & $python $decoyGenerator $sitePackages
 if ($LASTEXITCODE -ne 0) {
     throw "decoy generation failed with exit code $LASTEXITCODE"
+}
+
+Write-Host 'Applying NDAS compatibility patches to speakeasy'
+& $python $speakeasyPatcher $sitePackages
+if ($LASTEXITCODE -ne 0) {
+    throw "speakeasy patching failed with exit code $LASTEXITCODE"
 }
 
 if (-not (Test-Path -LiteralPath $runnerSource)) {

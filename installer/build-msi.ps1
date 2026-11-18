@@ -1,7 +1,7 @@
 param(
     [string]$Configuration = 'Release',
-    [string]$Version = '0.0.11.0',
-    [string]$DisplayVersion = 'rs_p0.0.11.0a',
+    [string]$Version = '0.0.12.0',
+    [string]$DisplayVersion = 'rs_p0.0.12.0a',
     [string]$PublishFolderName = 'publish',
     [switch]$SkipSandboxPrepare,
     [switch]$SkipAgentPrepare
