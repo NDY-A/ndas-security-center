@@ -363,8 +363,8 @@
                                   Toggled="ExtendedEngineIIToggle_Toggled">
                         <ToggleSwitch.Header>
                             <StackPanel Spacing="3">
-                                <TextBlock Text="启用 Defender 转化扩展规则包" FontWeight="SemiBold" />
-                                <TextBlock Text="加载 14 个 Defender 转化扩展分片（约 9.8 万条 YARA 规则），增强查杀能力。启用后进程至少占用 5 GB 内存。更改后需重启 NDAS 生效。默认关闭。"
+                                <TextBlock Text="启用扩展规则包" FontWeight="SemiBold" />
+                                <TextBlock Text="加载 14 个扩展规则分片（约 9.8 万条 YARA 规则），增强查杀能力。启用后进程至少占用 5 GB 内存。更改后需重启 NDAS 生效。默认关闭。"
                                            Style="{StaticResource AegisCaptionStyle}" TextWrapping="Wrap" />
                             </StackPanel>
                         </ToggleSwitch.Header>

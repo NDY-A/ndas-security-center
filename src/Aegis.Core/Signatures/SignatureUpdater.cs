@@ -34,7 +34,7 @@ public sealed class SignatureUpdater
     public const string YaraRuleFileName = "yara/rules.yar";
     public const string DefenderPackManifestFileName = "manifest.json";
     public const string DefenderPackManifestPath = "yara/defender/manifest.json";
-    public const string DefenderPackRepository = "NDY-A/ndas-defender-yara";
+    public const string ExtendedPackRepository = "NDY-A/ndas-extended-yara";
     private static readonly Regex PackFileNamePattern = new(
         "^[A-Za-z0-9._-]+\\.(?:yar|yara)$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private const long MaxSignatureFileBytes = SignatureFileLimits.MaxBytes;
@@ -89,16 +89,16 @@ public sealed class SignatureUpdater
 
     public static IReadOnlyList<SignatureUpdateSource> DefaultDefenderPackSources()
     {
-        var repository = DefenderPackRepository;
+        var repository = ExtendedPackRepository;
         return new[]
         {
-            new SignatureUpdateSource("Defender 规则包 · GitHub Raw",
+            new SignatureUpdateSource("扩展规则包 · GitHub Raw",
                 new Uri($"https://raw.githubusercontent.com/{repository}/main/")),
-            new SignatureUpdateSource("Defender 规则包 · GitHub Web Raw",
+            new SignatureUpdateSource("扩展规则包 · GitHub Web Raw",
                 new Uri($"https://github.com/{repository}/raw/main/")),
-            new SignatureUpdateSource("Defender 规则包 · jsDelivr",
+            new SignatureUpdateSource("扩展规则包 · jsDelivr",
                 new Uri($"https://fastly.jsdelivr.net/gh/{repository}@main/")),
-            new SignatureUpdateSource("Defender 规则包 · jsDelivr CDN",
+            new SignatureUpdateSource("扩展规则包 · jsDelivr CDN",
                 new Uri($"https://cdn.jsdelivr.net/gh/{repository}@main/"))
         };
     }

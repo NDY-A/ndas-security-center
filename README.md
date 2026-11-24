@@ -12,7 +12,7 @@ user-mode HIPS, a WinUI 3 UI and a LocalSystem protection service. This is an
 ## 功能
 
 - **扫描**：哈希 / 域名 / IP / 路径 IOC、YARA（内置 Elastic 规则集 + 可更新的 Defender 转化扩展包）、PE 与脚本启发式、云信誉接口
-- **增强型规则引擎 II**（可选，默认关闭）：加载约 9.7 万条 Defender 转化扩展 YARA 规则，
+- **增强型规则引擎 II**（可选，默认关闭）：加载约 9.7 万条扩展 YARA 规则，
   **至少占用 5 GB 内存**，在「威胁和防护设置」中开启后重启 NDAS 生效
 - **保护历史**：独立页面集中展示本次运行的扫描发现与主动防护事件，扫描结果可直接隔离 / 删除 / 加入白名单
 - **机器学习**：C++ 原生提取 109 维 PE 静态特征（含 Authenticode 签名校验状态），LightGBM 模型经
@@ -85,11 +85,11 @@ HIPS 为 `src/Aegis.Hips`，ML 托管桥为 `src/Aegis.ML`，原生特征提取�
   [DikeDataset](https://github.com/iosifache/DikeDataset) 与本机良性 PE 采样训练，
   训练指标记录在 `data/seed/ml/metrics.json`。
 
-### 扩展 YARA 规则包（Defender 转化规则）
+### 扩展 YARA 规则包
 
 - 扩展包托管在独立仓库
-  [NDY-A/ndas-defender-yara](https://github.com/NDY-A/ndas-defender-yara)：根目录
-  `manifest.json` 列出 14 个 `defender-patterns-part*.yara`（合计约 9.7 万条规则）
+  [NDY-A/ndas-extended-yara](https://github.com/NDY-A/ndas-extended-yara)：根目录
+  `manifest.json` 列出 14 个规则分片（`defender-patterns-part*.yara`，合计约 9.7 万条规则）
   的名称、字节数与 SHA-256；更新器按 raw.githubusercontent → GitHub Raw Web →
   jsDelivr ×2 的顺序尝试从该仓库下载，全部不可用时回退到
   `NDY-A/malware-egress-blocklist` 的 `data/yara/defender/` 旧位置。分片安装到
