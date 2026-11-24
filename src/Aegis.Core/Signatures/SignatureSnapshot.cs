@@ -14,6 +14,9 @@ public sealed class SignatureSnapshot
     public required IpMatcher IpAddresses { get; init; }
     public required YaraRuleSet Yara { get; init; }
     public required SpecialPathMatcher SpecialPaths { get; init; }
+    public TrustedHashIndex TrustedHashes { get; init; } = TrustedHashIndex.Empty;
+    public bool ExtendedRuleEngineIIEnabled { get; init; }
+    public int ExtendedRulePackSkippedFiles { get; init; }
     public required IReadOnlyList<string> Warnings { get; init; }
 
     public int HashCount => Hashes.Count;
@@ -21,6 +24,7 @@ public sealed class SignatureSnapshot
     public int IpCount => IpAddresses.Count;
     public int YaraRuleCount => Yara.RuleCount;
     public int SpecialPathCount => SpecialPaths.Count;
+    public int TrustedHashCount => TrustedHashes.Count;
 
     private readonly object _md5IndexLock = new();
     private IReadOnlyDictionary<string, HashSignature>? _md5Index;

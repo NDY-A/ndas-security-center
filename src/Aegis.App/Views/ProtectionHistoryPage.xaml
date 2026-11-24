@@ -1,0 +1,146 @@
+<Page
+    x:Class="Aegis.App.Views.ProtectionHistoryPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Padding="{StaticResource AegisPagePadding}" RowSpacing="18">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0" Spacing="4">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <HyperlinkButton Content="威胁和防护保护" Click="BreadcrumbRoot_Click"
+                                     FontSize="30" FontWeight="SemiBold" Padding="0" MinWidth="0"
+                                     Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                     HorizontalContentAlignment="Left" VerticalAlignment="Top" />
+                    <TextBlock Text="›" FontSize="30" FontWeight="Light"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                    <TextBlock Text="保护历史" Style="{StaticResource AegisPageTitleStyle}" />
+                </StackPanel>
+                <TextBlock Text="本次运行中的扫描发现和主动防护事件。"
+                           Style="{StaticResource AegisSecondaryTextStyle}" />
+            </StackPanel>
+
+            <InfoBar x:Name="HistoryInfo" Grid.Row="1" IsOpen="False" IsClosable="True" />
+
+            <Border Grid.Row="2" Style="{StaticResource AegisCardStyle}">
+                <StackPanel Spacing="12">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="扫描发现" Style="{StaticResource AegisSectionTitleStyle}" />
+                        <TextBlock x:Name="FindingsSummaryText" Text="尚未运行扫描。" Style="{StaticResource AegisCaptionStyle}" />
+                    </StackPanel>
+
+                    <ListView x:Name="FindingsList" SelectionMode="None" MaxHeight="420" Visibility="Collapsed">
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Padding="2,10" ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="62" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Background="{Binding BadgeBackground}" CornerRadius="999" Padding="9,4" VerticalAlignment="Top">
+                                        <TextBlock Text="{Binding VerdictText}" FontSize="11" FontWeight="SemiBold"
+                                                   Foreground="{Binding BadgeForeground}" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1" Spacing="3">
+                                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding FilePath}" Style="{StaticResource AegisCaptionStyle}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Detail}" Style="{StaticResource AegisCaptionStyle}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Spacing="2" VerticalAlignment="Top">
+                                        <TextBlock Text="{Binding TimeText}" Style="{StaticResource AegisCaptionStyle}" />
+                                        <TextBlock Text="{Binding ScoreText}" Style="{StaticResource AegisCaptionStyle}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="3" Spacing="4" VerticalAlignment="Top" HorizontalAlignment="Right">
+                                        <StackPanel Orientation="Horizontal" Spacing="6" Visibility="{Binding ActionsVisibility}">
+                                            <Button Content="隔离" Click="QuarantineFinding_Click" Padding="10,4" FontSize="12" />
+                                            <Button Content="删除" Click="DeleteFinding_Click" Padding="10,4" FontSize="12" />
+                                            <Button Content="允许" Click="AllowFinding_Click" Padding="10,4" FontSize="12" />
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding ActionStatus}" Style="{StaticResource AegisCaptionStyle}"
+                                                   Visibility="{Binding StatusVisibility}" HorizontalAlignment="Right" />
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+
+                    <Border x:Name="EmptyFindingsPanel" Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                            CornerRadius="10" Padding="18">
+                        <StackPanel Spacing="5">
+                            <TextBlock Text="还没有发现项" FontWeight="SemiBold" />
+                            <TextBlock Text="扫描完成后，命中的哈希、启发式规则和云判定会显示在这里。"
+                                       Style="{StaticResource AegisCaptionStyle}" />
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Text="扫描结果可执行隔离、删除或加入白名单；隔离文件可在“威胁和防护设置 &gt; 隔离区”还原。"
+                               Style="{StaticResource AegisCaptionStyle}" />
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Row="3" Style="{StaticResource AegisCardStyle}">
+                <StackPanel Spacing="12">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="主动防护事件" Style="{StaticResource AegisSectionTitleStyle}" />
+                        <TextBlock x:Name="EventsSummaryText" Text="还没有主动防护事件。" Style="{StaticResource AegisCaptionStyle}" />
+                    </StackPanel>
+
+                    <ListView x:Name="EventsList" SelectionMode="None" MaxHeight="380" Visibility="Collapsed">
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Padding="2,9" ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="76" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Background="{Binding BadgeBackground}" CornerRadius="999" Padding="8,4" VerticalAlignment="Top">
+                                        <TextBlock Text="{Binding SeverityText}" FontSize="11" FontWeight="SemiBold"
+                                                   Foreground="{Binding BadgeForeground}" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1" Spacing="3">
+                                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Detail}" Style="{StaticResource AegisCaptionStyle}"
+                                                   TextTrimming="CharacterEllipsis" MaxLines="2" />
+                                        <TextBlock Text="{Binding RuleId}" Style="{StaticResource AegisCaptionStyle}" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="2" Text="{Binding TimeText}" Style="{StaticResource AegisCaptionStyle}"
+                                               VerticalAlignment="Top" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+
+                    <Border x:Name="EmptyEventsPanel" Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                            CornerRadius="10" Padding="18">
+                        <StackPanel Spacing="5">
+                            <TextBlock Text="还没有主动防护事件" FontWeight="SemiBold" />
+                            <TextBlock Text="实时扫描、进程链、敏感目录落盘和自启动项变更会记录在这里。"
+                                       Style="{StaticResource AegisCaptionStyle}" />
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Text="HIPS 默认只告警；开启“高危行为自动终止”后只终止 Critical 规则、且不在 NDAS/系统目录内的进程。"
+                               Style="{StaticResource AegisCaptionStyle}" />
+                </StackPanel>
+            </Border>
+
+            <TextBlock Grid.Row="4" Text="历史仅保留本次运行最近 100 次扫描与 100 条事件，重启 NDAS 后清空。"
+                       Style="{StaticResource AegisCaptionStyle}" />
+        </Grid>
+    </ScrollViewer>
+</Page>

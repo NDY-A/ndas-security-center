@@ -34,6 +34,7 @@ public sealed partial class ProtectionHost : IDisposable
     private SpecialPathProbe? _specialPathProbe;
     private IdleScanService? _idleScan;
     private ContinuousScanService? _continuousScan;
+    private readonly object _fallbackScanLock = new();
     private ContainmentService? _containment;
     private SandboxCoordinator? _sandbox;
     private AgentCoordinator? _agent;
@@ -45,6 +46,7 @@ public sealed partial class ProtectionHost : IDisposable
     private long _threatsFound;
     private string? _lastError;
     private bool _disposed;
+    private bool _activeExtendedRuleEngineII;
 
     public ProtectionHost(string? explicitSeed = null)
     {
@@ -57,6 +59,8 @@ public sealed partial class ProtectionHost : IDisposable
         Directory.CreateDirectory(ServicePaths.LogsRoot);
         _blocker = new FileBlocker(ServicePaths.DataRoot);
         _settings = ServiceSettings.Load(ServicePaths.SettingsFile);
+        // 引擎 II 开关按服务启动时的设置生效；configure 只持久化，不改这个捕获值。
+        _activeExtendedRuleEngineII = _settings.ExtendedRuleEngineIIEnabled;
         _networkBlocker = new NetworkIocBlocker(ServicePaths.DataRoot);
         try
         {
@@ -268,6 +272,8 @@ public sealed partial class ProtectionHost : IDisposable
             ThreatsFound = Interlocked.Read(ref _threatsFound),
             SignatureVersion = snapshot?.Version,
             YaraRuleCount = snapshot?.YaraRuleCount ?? 0,
+            ExtendedRuleEngineIIEnabled = _settings.ExtendedRuleEngineIIEnabled,
+            ExtendedRuleEngineIIActive = _activeExtendedRuleEngineII,
             UpdatedAt = DateTimeOffset.UtcNow,
             RecentEvents = recent,
             WatchedPaths = _fileMonitor?.WatchedPaths.ToList() ?? new List<string>(),
@@ -327,40 +333,120 @@ public sealed partial class ProtectionHost : IDisposable
 
     private void ApplyAgentState()
     {
-        if (_settings.AgentModeEnabled && _agent is null)
+        try
         {
-            var component = AgentLocator.Locate();
-            _agent = new AgentCoordinator(component, ServicePaths.DataRoot, ServicePaths.LogsRoot)
+            if (_settings.AgentModeEnabled && _agent is null)
             {
-                Policy = BuildAgentPolicy()
-            };
-            WireAgent(_agent);
-            _agent.StateChanged += OnAgentStateChanged;
-            _agent.Start();
-            return;
-        }
-
-        if (!_settings.AgentModeEnabled && _agent is not null)
-        {
-            _agent.StateChanged -= OnAgentStateChanged;
-            try
-            {
-                _agent.StopAsync().Wait(TimeSpan.FromSeconds(3));
-            }
-            catch
-            {
-                // Best effort.
+                var component = AgentLocator.Locate();
+                _agent = new AgentCoordinator(component, ServicePaths.DataRoot, ServicePaths.LogsRoot)
+                {
+                    Policy = BuildAgentPolicy()
+                };
+                WireAgent(_agent);
+                _agent.StateChanged += OnAgentStateChanged;
+                _agent.Start();
+                return;
             }
 
-            _agent.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(2));
-            _agent = null;
-            return;
+            if (!_settings.AgentModeEnabled && _agent is not null)
+            {
+                _agent.StateChanged -= OnAgentStateChanged;
+                try
+                {
+                    _agent.StopAsync().Wait(TimeSpan.FromSeconds(3));
+                }
+                catch
+                {
+                    // Best effort.
+                }
+
+                _agent.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(2));
+                _agent = null;
+                return;
+            }
+
+            if (_agent is not null)
+            {
+                _agent.Policy = BuildAgentPolicy();
+                _agent.NotifyPolicyChanged();
+            }
+        }
+        catch (Exception exception)
+        {
+            // The decision agent is optional; base protection must keep working without it.
+            if (_agent is not null)
+            {
+                try
+                {
+                    _agent.StateChanged -= OnAgentStateChanged;
+                }
+                catch
+                {
+                    // Best effort.
+                }
+
+                _agent = null;
+            }
+
+            EnableFallbackScanning("HIPS.AGENT.FAILED", "决策 agent 启动失败，已回退基础扫描",
+                "决策 agent 初始化失败：" + exception.Message + "；闲时/连续后台扫描已启用，实时防护与 HIPS 不受影响。");
+        }
+    }
+
+    private void EnableFallbackScanning(string ruleId, string title, string detail)
+    {
+        _lastError = detail;
+        try
+        {
+            _hips?.ReportEvent(new HipsEvent(
+                DateTimeOffset.Now,
+                ruleId,
+                title,
+                detail,
+                HipsSeverity.Medium,
+                null,
+                null,
+                null,
+                false));
+        }
+        catch
+        {
+            // Event reporting must never take down the service.
         }
 
-        if (_agent is not null)
+        lock (_fallbackScanLock)
         {
-            _agent.Policy = BuildAgentPolicy();
-            _agent.NotifyPolicyChanged();
+            if (_idleScan is null)
+            {
+                _idleScan = new IdleScanService(
+                    IdleScanService.DefaultTargets,
+                    ScanIdleFileAsync,
+                    () => _settings.IdleScanEnabled && !_settings.ContinuousScanEnabled,
+                    () => _settings.IdleScanIdleMinutes,
+                    () => _exclusions);
+            }
+
+            if (_continuousScan is null)
+            {
+                _continuousScan = new ContinuousScanService(
+                    ContinuousScanTargets,
+                    ScanContinuousFileAsync,
+                    () => _settings.ContinuousScanEnabled,
+                    () => _settings.ContinuousScanCpuPercent,
+                    () => _exclusions);
+                _continuousScan.Start();
+            }
+        }
+    }
+
+    private void StopFallbackScans()
+    {
+        lock (_fallbackScanLock)
+        {
+            _idleScan?.Dispose();
+            _idleScan = null;
+            _continuousScan?.Dispose();
+            _continuousScan = null;
         }
     }
 
@@ -390,20 +476,16 @@ public sealed partial class ProtectionHost : IDisposable
                         null,
                         false));
                     break;
+                case AgentStates.Unavailable:
+                    EnableFallbackScanning("HIPS.AGENT.UNAVAILABLE", "决策 agent 组件不可用，已回退基础扫描",
+                        "agent 组件不可用：" + (error ?? "未安装") + "；闲时/连续后台扫描已启用，实时防护与 HIPS 不受影响。");
+                    break;
                 case AgentStates.Failed:
-                    _lastError = error;
-                    _hips?.ReportEvent(new HipsEvent(
-                        DateTimeOffset.Now,
-                        "HIPS.AGENT.FAILED",
-                        "决策 agent 启动失败，防护停扫",
-                        "连续重启失败，扫描保持停止，需手动重新启动 agent。" + (error ?? ""),
-                        HipsSeverity.Critical,
-                        null,
-                        null,
-                        null,
-                        false));
+                    EnableFallbackScanning("HIPS.AGENT.FAILED", "决策 agent 启动失败，已回退基础扫描",
+                        "连续重启失败：" + (error ?? "未知原因") + "；闲时/连续后台扫描已启用，实时防护与 HIPS 不受影响。");
                     break;
                 case AgentStates.Running:
+                    StopFallbackScans();
                     _hips?.ReportEvent(new HipsEvent(
                         DateTimeOffset.Now,
                         "HIPS.AGENT.RECOVERED",
@@ -1139,7 +1221,8 @@ public sealed partial class ProtectionHost : IDisposable
         try
         {
             var locator = new SignatureLocator(seedDirectory);
-            var snapshot = await locator.LoadBestAsync(cancellationToken).ConfigureAwait(false);
+            var snapshot = await locator.LoadBestAsync(cancellationToken, _activeExtendedRuleEngineII)
+                .ConfigureAwait(false);
             if (snapshot is null)
             {
                 _lastError = "没有可用的病毒库，实时扫描已停用。";
@@ -1176,7 +1259,8 @@ public sealed partial class ProtectionHost : IDisposable
         try
         {
             var locator = new SignatureLocator(seedDirectory);
-            var snapshot = await locator.LoadBestAsync(_cancellation.Token).ConfigureAwait(false);
+            var snapshot = await locator.LoadBestAsync(_cancellation.Token, _activeExtendedRuleEngineII)
+                .ConfigureAwait(false);
             if (snapshot is null)
             {
                 return;

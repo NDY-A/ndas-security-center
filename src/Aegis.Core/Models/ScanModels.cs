@@ -95,6 +95,8 @@ public sealed record ScanOptions
     public IReadOnlyList<string> UserExclusions { get; init; } = Array.Empty<string>();
     public IReadOnlyList<string> AllowedHashes { get; init; } = Array.Empty<string>();
     public bool IncludeHiddenFiles { get; init; } = true;
+    // 启发式评分达到该阈值才运行完整 YARA 规则集；<=0 表示每个文件都运行。
+    public int YaraHeuristicGateScore { get; init; } = 40;
     public static ScanOptions Default => new();
 }
 

@@ -176,7 +176,7 @@
                     </Grid>
                 </Border>
 
-                <Border Tag="hips" Style="{StaticResource AegisBigCardStyle}">
+                <Border Tag="history" Style="{StaticResource AegisBigCardStyle}">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="*" />
@@ -188,7 +188,7 @@
                             <TextBlock Text="保护历史" FontSize="16" FontWeight="SemiBold" Margin="0,4,0,0" />
                             <TextBlock x:Name="HistorySummaryText" Text="—" Style="{StaticResource AegisCaptionStyle}" />
                         </StackPanel>
-                        <HyperlinkButton Grid.Row="1" Content="查看事件" Click="NavigateHips_Click"
+                        <HyperlinkButton Grid.Row="1" Content="查看事件" Click="NavigateHistory_Click"
                                          Padding="0" HorizontalAlignment="Left" Margin="0,14,0,0" />
                     </Grid>
                 </Border>

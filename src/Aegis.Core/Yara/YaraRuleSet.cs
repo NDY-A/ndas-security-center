@@ -1,6 +1,8 @@
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using Aegis.Core.Models;
+using Aegis.Core.Signatures;
 
 namespace Aegis.Core.Yara;
 
@@ -9,7 +11,11 @@ public sealed class YaraRuleSet
     public static YaraRuleSet Empty { get; } = new(Array.Empty<YaraRule>(), 0, Array.Empty<string>());
 
     private const int MaxDiagnostics = 40;
-    private const long MaxRuleFileBytes = 16L * 1024 * 1024;
+    private const long MaxRuleFileBytes = SignatureFileLimits.MaxBytes;
+    // Condition trees deeper than this are rejected at load time: both the mandatory-string
+    // walk and the evaluator are recursive, and pathological chains (e.g. defender2yara
+    // output) have overflowed the stack on real inputs.
+    private const int MaxConditionDepth = 256;
 
     private readonly CompiledRule[] _rules;
     private readonly YaraStringDef[] _stringDefs;
@@ -104,11 +110,73 @@ public sealed class YaraRuleSet
 
     public static YaraRuleSet Parse(string text, string source)
     {
-        var rules = YaraParser.Parse(text, source, out var skipped, out var warnings);
-        return new YaraRuleSet(rules, skipped, warnings);
+        var rules = YaraParser.Parse(text, source, out var skipped, out var parseWarnings);
+        var warnings = parseWarnings.ToList();
+        var filtered = FilterByDepth(rules, ref skipped, warnings);
+        return new YaraRuleSet(filtered, skipped, warnings);
     }
 
-    public static YaraRuleSet LoadDirectory(string directory)
+    private static List<YaraRule> FilterByDepth(IReadOnlyList<YaraRule> rules, ref int skipped, List<string> warnings)
+    {
+        var filtered = new List<YaraRule>(rules.Count);
+        foreach (var rule in rules)
+        {
+            if (ComputeDepth(rule.Condition) <= MaxConditionDepth)
+            {
+                filtered.Add(rule);
+                continue;
+            }
+
+            skipped++;
+            if (warnings.Count < MaxDiagnostics)
+            {
+                warnings.Add($"{rule.Identifier}: 条件表达式嵌套过深，已跳过。");
+            }
+        }
+
+        return filtered;
+    }
+
+    private static int ComputeDepth(YaraExpression root)
+    {
+        var maximum = 1;
+        var stack = new Stack<(YaraExpression Expression, int Depth)>();
+        stack.Push((root, 1));
+        while (stack.Count > 0)
+        {
+            var (expression, depth) = stack.Pop();
+            if (depth > maximum)
+            {
+                maximum = depth;
+                if (maximum > MaxConditionDepth)
+                {
+                    return maximum;
+                }
+            }
+
+            switch (expression)
+            {
+                case YaraBinaryExpression binary:
+                    stack.Push((binary.Left, depth + 1));
+                    stack.Push((binary.Right, depth + 1));
+                    break;
+                case YaraUnaryExpression unary:
+                    stack.Push((unary.Operand, depth + 1));
+                    break;
+                case YaraCallExpression call:
+                    foreach (var argument in call.Arguments)
+                    {
+                        stack.Push((argument, depth + 1));
+                    }
+
+                    break;
+            }
+        }
+
+        return maximum;
+    }
+
+    public static YaraRuleSet LoadDirectory(string directory, IReadOnlyCollection<string>? excludedFileNames = null)
     {
         if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
         {
@@ -118,6 +186,9 @@ public sealed class YaraRuleSet
         var rules = new List<YaraRule>();
         var warnings = new List<string>();
         var skipped = 0;
+        HashSet<string>? excluded = excludedFileNames is { Count: > 0 }
+            ? new HashSet<string>(excludedFileNames, StringComparer.OrdinalIgnoreCase)
+            : null;
         var files = Directory.EnumerateFiles(directory, "*.yar", SearchOption.TopDirectoryOnly)
             .Concat(Directory.EnumerateFiles(directory, "*.yara", SearchOption.TopDirectoryOnly))
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -125,6 +196,11 @@ public sealed class YaraRuleSet
 
         foreach (var file in files)
         {
+            if (excluded is not null && excluded.Contains(Path.GetFileName(file)))
+            {
+                continue;
+            }
+
             try
             {
                 var info = new FileInfo(file);
@@ -157,10 +233,12 @@ public sealed class YaraRuleSet
             }
         }
 
-        return new YaraRuleSet(rules, skipped, warnings);
+        var filtered = FilterByDepth(rules, ref skipped, warnings);
+        return new YaraRuleSet(filtered, skipped, warnings);
     }
 
-    public YaraScanResult Scan(byte[] data, PeFileInfo? peInfo = null)
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+    public YaraScanResult Scan(byte[] data, PeFileInfo? peInfo = null, int maxParallelism = 1)
     {
         if (_rules.Length == 0 || data.Length == 0)
         {
@@ -181,10 +259,59 @@ public sealed class YaraRuleSet
         timer.Restart();
 
         var pe = YaraPeContext.Create(data, peInfo);
+        var parallelism = Math.Clamp(maxParallelism, 1, 8);
+        if (parallelism > 1 && _rules.Length >= 2000)
+        {
+            var shardSize = (_rules.Length + parallelism - 1) / parallelism;
+            var shards = new ShardResult?[parallelism];
+            Parallel.For(0, parallelism, index =>
+            {
+                var start = index * shardSize;
+                var end = Math.Min(_rules.Length, start + shardSize);
+                if (start >= end)
+                {
+                    shards[index] = new ShardResult(new List<YaraRuleMatch>(), 0, 0);
+                    return;
+                }
+
+                // StringDefs/Text/Data/PE context are immutable; each shard owns its lazy caches.
+                shards[index] = EvaluateShard(state.Fork(), pe, start, end);
+            });
+
+            var merged = new List<YaraRuleMatch>();
+            var candidateTotal = 0;
+            var regexTotal = 0;
+            foreach (var shard in shards)
+            {
+                if (shard is null)
+                {
+                    continue;
+                }
+
+                merged.AddRange(shard.Matches);
+                candidateTotal += shard.Candidates;
+                regexTotal += shard.RegexEvaluations;
+            }
+
+            return new YaraScanResult(merged, _rules.Length, candidateTotal, regexTotal,
+                acMilliseconds, timer.ElapsedMilliseconds);
+        }
+
+        var serial = EvaluateShard(state, pe, 0, _rules.Length);
+        return new YaraScanResult(serial.Matches, _rules.Length, serial.Candidates, serial.RegexEvaluations,
+            acMilliseconds, timer.ElapsedMilliseconds);
+    }
+
+    private sealed record ShardResult(List<YaraRuleMatch> Matches, int Candidates, int RegexEvaluations);
+
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+    private ShardResult EvaluateShard(YaraScanState state, YaraPeContext? pe, int start, int end)
+    {
         var matches = new List<YaraRuleMatch>();
         var candidates = 0;
-        foreach (var compiled in _rules)
+        for (var index = start; index < end; index++)
         {
+            var compiled = _rules[index];
             // The longest text literals act as per-rule fingerprints: when neither appears,
             // skip the rule before paying for hex/regex evaluation. Rules made up only of
             // hex/regex strings have no cheap fingerprint and are skipped to keep per-file
@@ -225,7 +352,7 @@ public sealed class YaraRuleSet
             }
         }
 
-        return new YaraScanResult(matches, _rules.Length, candidates, state.RegexEvaluations, acMilliseconds, timer.ElapsedMilliseconds);
+        return new ShardResult(matches, candidates, state.RegexEvaluations);
     }
 
     private static string Latin1(byte[] bytes)
@@ -287,9 +414,14 @@ public sealed class YaraRuleSet
         private readonly bool[] _regexEvaluated;
 
         public YaraScanState(YaraStringDef[] definitions, string text, byte[] data)
+            : this(definitions, text, data, new bool[definitions.Length])
+        {
+        }
+
+        private YaraScanState(YaraStringDef[] definitions, string text, byte[] data, bool[] acHits)
         {
             _definitions = definitions;
-            _acHits = new bool[definitions.Length];
+            _acHits = acHits;
             _counts = new int[definitions.Length];
             _offsets = new long[definitions.Length];
             _lengths = new long[definitions.Length];
@@ -297,6 +429,11 @@ public sealed class YaraRuleSet
             Text = text;
             Data = data;
         }
+
+        public YaraScanState Fork() => new(_definitions, Text, Data, (bool[])_acHits.Clone())
+        {
+            LowerText = LowerText
+        };
 
         public bool AcHit(int globalIndex) => _acHits[globalIndex];
 
@@ -331,6 +468,7 @@ public sealed class YaraRuleSet
 
         public bool IsMatch(int globalIndex) => GetCount(globalIndex) > 0;
 
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         public long GetCount(int globalIndex)
         {
             EnsureEvaluated(globalIndex);
@@ -349,6 +487,7 @@ public sealed class YaraRuleSet
             return _lengths[globalIndex];
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         private void EnsureEvaluated(int globalIndex)
         {
             if (_regexEvaluated[globalIndex])
@@ -402,6 +541,7 @@ public sealed class YaraRuleSet
             }
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         private void MatchTextLazily(int globalIndex, YaraStringDef definition)
         {
             if (string.IsNullOrEmpty(definition.Text))

@@ -130,6 +130,7 @@ public sealed partial class MainWindow : Window
     {
         "dashboard" => typeof(DashboardPage),
         "scan" => typeof(ScanPage),
+        "history" => typeof(ProtectionHistoryPage),
         "providers" => typeof(ProvidersPage),
         "hips" => typeof(HipsPage),
         "update" => typeof(UpdatePage),

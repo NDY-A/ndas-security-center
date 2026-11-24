@@ -34,6 +34,7 @@ public sealed class AppSettings
     public bool SandboxEnabled { get; set; } = true;
     public bool SandboxAutoRemediate { get; set; } = true;
     public int SandboxMaxRunSeconds { get; set; } = 60;
+    public bool ExtendedRuleEngineIIEnabled { get; set; }
     public bool AgentModeEnabled { get; set; } = true;
     public string InvestigationRemediateMode { get; set; } = "auto";
     public bool NotificationsEnabled { get; set; } = true;

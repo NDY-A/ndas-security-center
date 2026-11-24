@@ -357,6 +357,8 @@ public sealed partial class DashboardPage : Page
 
     private void NavigateHips_Click(object sender, RoutedEventArgs e) => App.MainWindow?.NavigateTo("hips");
 
+    private void NavigateHistory_Click(object sender, RoutedEventArgs e) => App.MainWindow?.NavigateTo("history");
+
     private void NavigateAutomation_Click(object sender, RoutedEventArgs e) => App.MainWindow?.NavigateTo("automation");
 
     private void NavigateScan_Click(object sender, RoutedEventArgs e) => App.MainWindow?.NavigateTo("scan");
@@ -375,6 +377,9 @@ public sealed partial class DashboardPage : Page
                 break;
             case "hips":
                 App.MainWindow?.NavigateTo("hips");
+                break;
+            case "history":
+                App.MainWindow?.NavigateTo("history");
                 break;
             case "automation":
                 App.MainWindow?.NavigateTo("automation");

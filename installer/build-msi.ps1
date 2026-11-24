@@ -1,10 +1,11 @@
 param(
     [string]$Configuration = 'Release',
-    [string]$Version = '0.0.12.0',
-    [string]$DisplayVersion = 'rs_p0.0.12.0a',
+    [string]$Version = '0.0.14.0',
+    [string]$DisplayVersion = 'rs_p0.0.14.0a',
     [string]$PublishFolderName = 'publish',
     [switch]$SkipSandboxPrepare,
-    [switch]$SkipAgentPrepare
+    [switch]$SkipAgentPrepare,
+    [switch]$WithoutAgent
 )
 
 $ErrorActionPreference = 'Stop'
@@ -15,7 +16,9 @@ $publishDir = Join-Path $root "dist\$PublishFolderName"
 $servicePublishDir = Join-Path $root 'dist\service'
 $sandboxDir = Join-Path $root 'dist\sandbox'
 $agentDir = Join-Path $root 'dist\agent'
-$msiPath = Join-Path $root "dist\NDAS-$DisplayVersion-win-x64.msi"
+$includeAgent = -not $WithoutAgent
+$msiSuffix = if ($WithoutAgent) { '-noagent' } else { '' }
+$msiPath = Join-Path $root "dist\NDAS-$DisplayVersion$msiSuffix-win-x64.msi"
 
 $guardDir = Join-Path $root 'dist\guard'
 
@@ -53,15 +56,20 @@ if (-not (Test-Path -LiteralPath (Join-Path $sandboxDir 'component.json'))) {
     throw "Sandbox components are missing at $sandboxDir. Run prepare-sandbox.ps1 first."
 }
 
-if (-not $SkipAgentPrepare) {
-    & (Join-Path $installerDir 'prepare-agent.ps1') -OutputDir $agentDir -Version $DisplayVersion
-    if ($LASTEXITCODE -ne 0) {
-        throw "prepare-agent.ps1 failed with exit code $LASTEXITCODE"
+if ($includeAgent) {
+    if (-not $SkipAgentPrepare) {
+        & (Join-Path $installerDir 'prepare-agent.ps1') -OutputDir $agentDir -Version $DisplayVersion
+        if ($LASTEXITCODE -ne 0) {
+            throw "prepare-agent.ps1 failed with exit code $LASTEXITCODE"
+        }
+    }
+
+    if (-not (Test-Path -LiteralPath (Join-Path $agentDir 'agent_daemon.py'))) {
+        throw "Agent components are missing at $agentDir. Run prepare-agent.ps1 first."
     }
 }
-
-if (-not (Test-Path -LiteralPath (Join-Path $agentDir 'agent_daemon.py'))) {
-    throw "Agent components are missing at $agentDir. Run prepare-agent.ps1 first."
+else {
+    Write-Host 'WithoutAgent: skipping the AI agent component (no Agent folder, smaller MSI).'
 }
 
 if (Test-Path -LiteralPath $publishDir) {
@@ -98,6 +106,7 @@ wix build (Join-Path $installerDir 'NDAS.wxs') `
     -d "ServicePublishDir=$servicePublishDir" `
     -d "SandboxDir=$sandboxDir" `
     -d "AgentDir=$agentDir" `
+    -d "IncludeAgent=$([int]$includeAgent)" `
     -d "GuardDir=$guardDir" `
     -d "LicenseRtf=$licenseRtf" `
     -pdbtype none `

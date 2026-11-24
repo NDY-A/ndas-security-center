@@ -75,6 +75,25 @@ public sealed class AegisScanner
             };
         }
 
+        if (Signatures.TrustedHashes.ContainsHex(hashed.Sha256))
+        {
+            stopwatch.Stop();
+            return new FileScanResult
+            {
+                FilePath = fullPath,
+                FileName = Path.GetFileName(fullPath),
+                Size = hashed.Size,
+                Sha256 = hashed.Sha256,
+                Kind = kind,
+                Verdict = ThreatVerdict.Clean,
+                Score = 0,
+                Detections = Array.Empty<Detection>(),
+                Notes = new[] { "SHA-256 命中微软已知可信文件库，已跳过启发式与云查询。" },
+                ScanDuration = stopwatch.Elapsed,
+                ScannedAt = DateTimeOffset.UtcNow
+            };
+        }
+
         var detections = new List<Detection>();
         var notes = new List<string>();
         IReadOnlyList<NetworkIndicator> indicators = Array.Empty<NetworkIndicator>();
@@ -133,7 +152,8 @@ public sealed class AegisScanner
 
         if (detections.Count == 0 && options.RunHeuristics)
         {
-            var analysis = await _heuristics.AnalyzeAsync(fullPath, kind, cancellationToken).ConfigureAwait(false);
+            var analysis = await _heuristics.AnalyzeAsync(fullPath, kind, options.YaraHeuristicGateScore,
+                cancellationToken).ConfigureAwait(false);
             detections.AddRange(analysis.Detections);
             notes.AddRange(analysis.Notes);
             indicators = analysis.NetworkIndicators;

@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
+<?ifndef IncludeAgent ?>
+<?define IncludeAgent = "1" ?>
+<?endif ?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
   <Package Name="NDAS 安全中心"
@@ -23,7 +26,9 @@
       <Directory Id="INSTALLFOLDER" Name="NDAS">
         <Directory Id="SERVICEFOLDER" Name="Service" />
         <Directory Id="SANDBOXFOLDER" Name="Sandbox" />
+<?if $(var.IncludeAgent) = "1" ?>
         <Directory Id="AGENTFOLDER" Name="Agent" />
+<?endif ?>
         <Directory Id="GUARDFOLDER" Name="Guard" />
       </Directory>
     </StandardDirectory>
@@ -38,10 +43,29 @@
       <ComponentGroupRef Id="AppFiles" />
       <ComponentGroupRef Id="ServiceFiles" />
       <ComponentGroupRef Id="SandboxFiles" />
+<?if $(var.IncludeAgent) = "1" ?>
       <ComponentGroupRef Id="AgentFiles" />
+<?endif ?>
       <ComponentGroupRef Id="GuardFiles" />
       <ComponentGroupRef Id="Shortcuts" />
     </Feature>
+
+    <!-- Binary/CustomAction/sequence must live under Package; inside an unreferenced
+         Fragment WiX drops them from the final tables. -->
+    <Binary Id="NdasGuardBinary" SourceFile="$(var.GuardDir)\NdasGuard.exe" />
+    <CustomAction Id="GuardDisarm" BinaryRef="NdasGuardBinary" ExeCommand="--disarm"
+                  Execute="deferred" Impersonate="no" Return="ignore" />
+    <CustomAction Id="GuardArm" BinaryRef="NdasGuardBinary" ExeCommand="--arm"
+                  Execute="deferred" Impersonate="no" Return="ignore" />
+    <!-- Launch through explorer.exe so the app starts as the interactive user instead of elevated. -->
+    <CustomAction Id="LaunchApp" Directory="INSTALLFOLDER"
+                  ExeCommand="explorer.exe &quot;[INSTALLFOLDER]NDAS.exe&quot;"
+                  Execute="immediate" Return="asyncNoWait" />
+    <InstallExecuteSequence>
+      <Custom Action="GuardDisarm" Before="StopServices" Condition="NOT REMOVE" />
+      <Custom Action="GuardArm" Before="InstallFinalize" Condition="NOT REMOVE" />
+      <Custom Action="LaunchApp" After="InstallFinalize" Condition="NOT REMOVE AND UILevel &gt;= 3" />
+    </InstallExecuteSequence>
   </Package>
 
   <Fragment>
@@ -79,11 +103,13 @@
     </ComponentGroup>
   </Fragment>
 
+<?if $(var.IncludeAgent) = "1" ?>
   <Fragment>
     <ComponentGroup Id="AgentFiles" Directory="AGENTFOLDER">
       <Files Include="$(var.AgentDir)\**" />
     </ComponentGroup>
   </Fragment>
+<?endif ?>
 
   <Fragment>
     <ComponentGroup Id="GuardFiles" Directory="GUARDFOLDER">
@@ -102,18 +128,6 @@
         <ServiceControl Id="NdasGuardServiceControl" Name="NdasGuard" Stop="uninstall" Remove="uninstall" Wait="yes" />
       </Component>
     </ComponentGroup>
-  </Fragment>
-
-  <Fragment>
-    <Binary Id="NdasGuardBinary" SourceFile="$(var.GuardDir)\NdasGuard.exe" />
-    <CustomAction Id="GuardDisarm" BinaryRef="NdasGuardBinary" ExeCommand="--disarm"
-                  Execute="deferred" Impersonate="no" Return="ignore" />
-    <CustomAction Id="GuardArm" BinaryRef="NdasGuardBinary" ExeCommand="--arm"
-                  Execute="deferred" Impersonate="no" Return="ignore" />
-    <InstallExecuteSequence>
-      <Custom Action="GuardDisarm" Before="StopServices" Condition="NOT REMOVE" />
-      <Custom Action="GuardArm" Before="InstallFinalize" Condition="NOT REMOVE" />
-    </InstallExecuteSequence>
   </Fragment>
 
   <Fragment>

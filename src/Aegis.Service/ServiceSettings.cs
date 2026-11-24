@@ -23,6 +23,7 @@ public sealed class ServiceSettings
     public bool SandboxAutoRemediate { get; set; } = true;
     public bool SandboxAutoBlockNetwork { get; set; } = true;
     public int SandboxMaxRunSeconds { get; set; } = 60;
+    public bool ExtendedRuleEngineIIEnabled { get; set; }
     public bool AgentModeEnabled { get; set; } = true;
     public string InvestigationRemediateMode { get; set; } = "auto";
 
@@ -46,6 +47,7 @@ public sealed class ServiceSettings
         SandboxAutoRemediate = SandboxAutoRemediate,
         SandboxAutoBlockNetwork = SandboxAutoBlockNetwork,
         SandboxMaxRunSeconds = SandboxMaxRunSeconds,
+        ExtendedRuleEngineIIEnabled = ExtendedRuleEngineIIEnabled,
         AgentModeEnabled = AgentModeEnabled,
         InvestigationRemediateMode = InvestigationRemediateMode
     };
@@ -74,6 +76,7 @@ public sealed class ServiceSettings
         SandboxAutoRemediate = configuration.SandboxAutoRemediate;
         SandboxAutoBlockNetwork = configuration.SandboxAutoBlockNetwork;
         SandboxMaxRunSeconds = Math.Clamp(configuration.SandboxMaxRunSeconds, 30, 300);
+        ExtendedRuleEngineIIEnabled = configuration.ExtendedRuleEngineIIEnabled;
         AgentModeEnabled = configuration.AgentModeEnabled;
         InvestigationRemediateMode = configuration.InvestigationRemediateMode is "report" or "auto"
             ? configuration.InvestigationRemediateMode

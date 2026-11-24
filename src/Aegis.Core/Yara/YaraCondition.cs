@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 
 namespace Aegis.Core.Yara;
@@ -103,6 +104,7 @@ public static class YaraEvaluator
     public static bool Evaluate(YaraExpression expression, IYaraEvaluationContext context)
         => IsTruthy(EvaluateValue(expression, context));
 
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public static object? EvaluateValue(YaraExpression expression, IYaraEvaluationContext context)
     {
         switch (expression)
@@ -204,6 +206,7 @@ public static class YaraEvaluator
         };
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private static object? EvaluateBinary(YaraBinaryExpression binary, IYaraEvaluationContext context)
     {
         if (binary.Operator == YaraBinaryOperator.And)

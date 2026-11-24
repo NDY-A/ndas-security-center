@@ -12,7 +12,8 @@ public sealed class SignatureLocator
         _seedDirectory = seedDirectory;
     }
 
-    public async Task<SignatureSnapshot?> LoadBestAsync(CancellationToken cancellationToken)
+    public async Task<SignatureSnapshot?> LoadBestAsync(CancellationToken cancellationToken,
+        bool includeExtendedRulePack = true)
     {
         SignatureSnapshot? best = null;
         foreach (var root in EnumerateRoots())
@@ -25,7 +26,7 @@ public sealed class SignatureLocator
                 }
 
                 var repository = new SignatureRepository(root, _seedDirectory);
-                var snapshot = await repository.LoadAsync(cancellationToken).ConfigureAwait(false);
+                var snapshot = await repository.LoadAsync(cancellationToken, includeExtendedRulePack).ConfigureAwait(false);
                 if (!snapshot.IsSeed && (best is null || snapshot.FetchedAt > best.FetchedAt))
                 {
                     best = snapshot;
@@ -48,7 +49,7 @@ public sealed class SignatureLocator
         }
 
         var seedRepository = new SignatureRepository(ServicePaths.SharedSignatureRoot, _seedDirectory);
-        return await seedRepository.LoadAsync(cancellationToken).ConfigureAwait(false);
+        return await seedRepository.LoadAsync(cancellationToken, includeExtendedRulePack).ConfigureAwait(false);
     }
 
     private static IEnumerable<string> EnumerateRoots()

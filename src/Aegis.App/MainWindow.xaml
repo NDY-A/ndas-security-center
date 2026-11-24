@@ -42,6 +42,11 @@
                         <PathIcon Data="M12,2 L20.5,5.2 V11.4 C20.5,17 17,21 12,23 C7,21 3.5,17 3.5,11.4 V5.2 Z" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
+                <NavigationViewItem Content="保护历史" Tag="history">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE81C;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
                 <NavigationViewItem Content="保护更新" Tag="update">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE895;" />

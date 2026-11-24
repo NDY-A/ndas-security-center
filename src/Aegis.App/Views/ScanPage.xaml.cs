@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using Aegis.App.Services;
 using Aegis.Core.Models;
 using Aegis.Core.Scanning;
@@ -156,9 +155,6 @@ public sealed partial class ScanPage : Page
 
         var quarantined = services.Quarantine.GetEntries().Count();
         ScanQuarantineText.Text = quarantined > 0 ? $"{quarantined} 项隔离文件" : "隔离区为空。";
-        LastScanText.Text = last?.Summary is { } lastSummary
-            ? FormatScanLine(lastSummary)
-            : "尚未运行扫描。建议先运行一次快速扫描。";
     }
 
     private void RefreshScanState()
@@ -199,7 +195,7 @@ public sealed partial class ScanPage : Page
 
     private void NavigateProviders_Click(object sender, RoutedEventArgs e) => App.MainWindow?.NavigateTo("providers");
 
-    private void ScrollToResults_Click(object sender, RoutedEventArgs e) => ResultsCard.StartBringIntoView();
+    private void NavigateHistory_Click(object sender, RoutedEventArgs e) => App.MainWindow?.NavigateTo("history");
 
     private void ScrollToScanOptions_Click(object sender, RoutedEventArgs e) => ScanOptionsCard.StartBringIntoView();
 
@@ -382,14 +378,6 @@ public sealed partial class ScanPage : Page
             FilesScannedText.Text = summary.FilesScanned.ToString("N0");
             DetectionsText.Text = (summary.MaliciousCount + summary.SuspiciousCount).ToString("N0");
             ProgressDetail.Text = $"用时 {summary.Duration.TotalSeconds:F1} 秒 · 扫描 {summary.FilesScanned:N0} 个文件 · 病毒库 {summary.SignatureVersion}";
-            LastScanText.Text = FormatScanLine(summary);
-
-            var rows = summary.Detections
-                .Select(CreateRow)
-                .ToArray();
-            ResultsList.ItemsSource = rows;
-            ResultsList.Visibility = rows.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
-            EmptyResultsPanel.Visibility = rows.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
 
             var severity = summary.MaliciousCount > 0
                 ? InfoBarSeverity.Error
@@ -399,7 +387,8 @@ public sealed partial class ScanPage : Page
                         ? InfoBarSeverity.Informational
                         : InfoBarSeverity.Success;
             ShowInfo(severity, summary.StatusText,
-                $"扫描 {summary.FilesScanned:N0} 个文件，发现 {summary.MaliciousCount:N0} 个恶意项、{summary.PuaCount:N0} 个 PUA、{summary.AttentionCount:N0} 个重点关注项、{summary.SuspiciousCount:N0} 个可疑项。");
+                $"扫描 {summary.FilesScanned:N0} 个文件，发现 {summary.MaliciousCount:N0} 个恶意项、{summary.PuaCount:N0} 个 PUA、{summary.AttentionCount:N0} 个重点关注项、{summary.SuspiciousCount:N0} 个可疑项。" +
+                (summary.Detections.Count > 0 ? " 详情请查看“保护历史记录”。" : string.Empty));
         }
     }
 
@@ -409,110 +398,6 @@ public sealed partial class ScanPage : Page
         ScanInfo.Title = title;
         ScanInfo.Message = message;
         ScanInfo.IsOpen = true;
-    }
-
-    private async void QuarantineFinding_Click(object sender, RoutedEventArgs e)
-    {
-        if ((sender as FrameworkElement)?.DataContext is not ScanResultRow row)
-        {
-            return;
-        }
-
-        if (!await ConfirmAsync("隔离文件",
-                $"将 {row.Result.FileName} 移入 NDAS 隔离区？可在“威胁和防护设置 > 隔离区”还原。", "隔离"))
-        {
-            return;
-        }
-
-        try
-        {
-            await App.Services.Quarantine.QuarantineAsync(row.Result);
-            row.MarkHandled("已隔离");
-            ShowInfo(InfoBarSeverity.Success, "已隔离", row.Result.FileName + " 已移入隔离区。");
-            RefreshPage();
-        }
-        catch (Exception exception)
-        {
-            ShowInfo(InfoBarSeverity.Error, "隔离失败", exception.Message);
-        }
-    }
-
-    private async void DeleteFinding_Click(object sender, RoutedEventArgs e)
-    {
-        if ((sender as FrameworkElement)?.DataContext is not ScanResultRow row)
-        {
-            return;
-        }
-
-        if (!await ConfirmAsync("永久删除文件",
-                $"永久删除 {row.Result.FileName}？此操作不可撤销，文件不会进入回收站。", "永久删除"))
-        {
-            return;
-        }
-
-        try
-        {
-            var attributes = File.GetAttributes(row.Result.FilePath);
-            if ((attributes & FileAttributes.ReadOnly) != 0)
-            {
-                File.SetAttributes(row.Result.FilePath, attributes & ~FileAttributes.ReadOnly);
-            }
-
-            File.Delete(row.Result.FilePath);
-            row.MarkHandled("已删除");
-            ShowInfo(InfoBarSeverity.Informational, "已删除", row.Result.FileName + " 已永久删除。");
-            RefreshPage();
-        }
-        catch (Exception exception)
-        {
-            ShowInfo(InfoBarSeverity.Error, "删除失败", exception.Message);
-        }
-    }
-
-    private async void AllowFinding_Click(object sender, RoutedEventArgs e)
-    {
-        if ((sender as FrameworkElement)?.DataContext is not ScanResultRow row)
-        {
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(row.Result.Sha256))
-        {
-            ShowInfo(InfoBarSeverity.Warning, "无法允许", "这个发现项没有可用的 SHA-256。");
-            return;
-        }
-
-        if (!await ConfirmAsync("允许此文件",
-                $"将 {row.Result.FileName} 的 SHA-256 加入白名单？之后扫描和实时防护都会跳过此文件。", "允许"))
-        {
-            return;
-        }
-
-        try
-        {
-            await App.Services.AllowHashAsync(row.Result.Sha256);
-            row.MarkHandled("已允许");
-            ShowInfo(InfoBarSeverity.Success, "已加入白名单", row.Result.FileName + " 以后会被扫描和实时防护跳过。");
-            RefreshPage();
-        }
-        catch (Exception exception)
-        {
-            ShowInfo(InfoBarSeverity.Error, "加入白名单失败", exception.Message);
-        }
-    }
-
-    private async Task<bool> ConfirmAsync(string title, string message, string primaryText)
-    {
-        var dialog = new ContentDialog
-        {
-            Title = title,
-            Content = message,
-            PrimaryButtonText = primaryText,
-            CloseButtonText = "取消",
-            DefaultButton = ContentDialogButton.Close,
-            XamlRoot = XamlRoot
-        };
-        return await dialog.ShowAsync() == ContentDialogResult.Primary;
     }
 
     private static bool HasOutstandingThreats(ScanSummary summary) =>
@@ -538,102 +423,6 @@ public sealed partial class ScanPage : Page
         {
             return true;
         }
-    }
-
-    private static ScanResultRow CreateRow(FileScanResult finding)
-    {
-        var row = ScanResultRow.From(finding);
-        if (App.Services.Settings.AllowedHashes.Contains(finding.Sha256, StringComparer.OrdinalIgnoreCase))
-        {
-            row.MarkHandled("已允许");
-        }
-        else if (!File.Exists(finding.FilePath))
-        {
-            row.MarkHandled("文件已不存在");
-        }
-
-        return row;
-    }
-
-    private static string FormatScanLine(ScanSummary summary)
-    {
-        var local = summary.CompletedAt.ToLocalTime();
-        var when = local.Date == DateTimeOffset.Now.Date ? $"今天 {local:HH:mm}" : $"{local:MM-dd HH:mm}";
-        var parts = new List<string>();
-        if (summary.MaliciousCount > 0) parts.Add($"{summary.MaliciousCount} 个恶意项");
-        if (summary.PuaCount > 0) parts.Add($"{summary.PuaCount} 个 PUA");
-        if (summary.AttentionCount > 0) parts.Add($"{summary.AttentionCount} 个重点关注");
-        if (summary.SuspiciousCount > 0) parts.Add($"{summary.SuspiciousCount} 个可疑项");
-        var result = summary.Cancelled ? "已取消" : parts.Count > 0 ? string.Join(" / ", parts) : "未发现威胁";
-        return $"{when} · 扫描 {summary.FilesScanned:N0} 个文件 · {result}";
-    }
-
-    private static Brush BrushResource(string key, Color fallback)
-    {
-        if (Application.Current.Resources.TryGetValue(key, out var value) && value is Brush brush)
-        {
-            return brush;
-        }
-
-        return new SolidColorBrush(fallback);
-    }
-}
-
-public sealed class ScanResultRow : INotifyPropertyChanged
-{
-    private string? _actionStatus;
-
-    public required FileScanResult Result { get; init; }
-    public required string VerdictText { get; init; }
-    public required string Title { get; init; }
-    public required string FilePath { get; init; }
-    public required string Detail { get; init; }
-    public required string ScoreText { get; init; }
-    public required Brush BadgeBackground { get; init; }
-    public required Brush BadgeForeground { get; init; }
-
-    public string ActionStatus => _actionStatus ?? string.Empty;
-
-    public Visibility ActionsVisibility => _actionStatus is null ? Visibility.Visible : Visibility.Collapsed;
-
-    public Visibility StatusVisibility => _actionStatus is null ? Visibility.Collapsed : Visibility.Visible;
-
-    public event PropertyChangedEventHandler? PropertyChanged;
-
-    public void MarkHandled(string status)
-    {
-        _actionStatus = status;
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ActionStatus)));
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ActionsVisibility)));
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StatusVisibility)));
-    }
-
-    public static ScanResultRow From(FileScanResult finding)
-    {
-        var detection = finding.Detections.FirstOrDefault();
-        var malicious = finding.Verdict == ThreatVerdict.Malicious;
-        var attention = finding.Verdict == ThreatVerdict.Attention;
-        return new ScanResultRow
-        {
-            Result = finding,
-            VerdictText = finding.VerdictText,
-            Title = finding.ThreatName ?? detection?.Name ?? "启发式发现",
-            FilePath = finding.FilePath,
-            Detail = detection is null
-                ? string.Join(" · ", finding.Notes.Take(2))
-                : $"{detection.RuleId} · {detection.Description}",
-            ScoreText = $"评分 {finding.Score}",
-            BadgeBackground = malicious
-                ? BrushResource("AegisDangerSoftBrush", Color.FromArgb(255, 253, 231, 233))
-                : attention
-                    ? BrushResource("AegisAccentSoftBrush", Color.FromArgb(255, 232, 241, 251))
-                    : BrushResource("AegisWarningSoftBrush", Color.FromArgb(255, 255, 244, 206)),
-            BadgeForeground = malicious
-                ? BrushResource("AegisDangerTextBrush", Color.FromArgb(255, 138, 28, 16))
-                : attention
-                    ? BrushResource("AegisAccentTextBrush", Color.FromArgb(255, 15, 108, 189))
-                    : BrushResource("AegisWarningTextBrush", Color.FromArgb(255, 107, 64, 0))
-        };
     }
 
     private static Brush BrushResource(string key, Color fallback)

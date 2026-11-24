@@ -22,6 +22,7 @@ public sealed record HeuristicAnalysis(
 
 public sealed class HeuristicEngine
 {
+    public const int DefaultYaraGateScore = 40;
     private const int MaxTextChars = 400_000;
     private const int MaxFindings = 18;
     private readonly SignatureSnapshot _signatures;
@@ -31,7 +32,8 @@ public sealed class HeuristicEngine
         _signatures = signatures;
     }
 
-    public async Task<HeuristicAnalysis> AnalyzeAsync(string path, FileKind kind, CancellationToken cancellationToken = default)
+    public async Task<HeuristicAnalysis> AnalyzeAsync(string path, FileKind kind,
+        int yaraGateScore = DefaultYaraGateScore, CancellationToken cancellationToken = default)
     {
         var findings = new List<Detection>();
         var notes = new List<string>();
@@ -75,16 +77,18 @@ public sealed class HeuristicEngine
             notes.AddRange(pe.Notes);
         }
 
-        AddYaraFindings(sample.Bytes, kind, peInfo, findings, notes);
-
         if (kind == FileKind.Archive)
         {
+            // 归档没有内容启发式可算分，YARA 是唯一的内容检测层，保持无条件执行。
+            AddYaraFindings(sample.Bytes, kind, peInfo, findings, notes);
             notes.Add("归档/MSI/镜像文件当前只做文件哈希与 YARA 匹配，尚未递归解包。");
             return new HeuristicAnalysis(kind, findings, indicators, peInfo, notes);
         }
 
         if (!FileKindDetector.SupportsContentHeuristics(kind))
         {
+            // 没有内容启发式可打分时，YARA 是唯一的内容检测层。
+            AddYaraFindings(sample.Bytes, kind, peInfo, findings, notes);
             return new HeuristicAnalysis(kind, findings, indicators, peInfo, notes);
         }
 
@@ -92,6 +96,7 @@ public sealed class HeuristicEngine
         if (string.IsNullOrWhiteSpace(text))
         {
             notes.Add("未提取到可供规则匹配的可打印内容。");
+            ApplyGatedYara(sample.Bytes, kind, peInfo, yaraGateScore, findings, notes);
             return new HeuristicAnalysis(kind, findings, indicators, peInfo, notes);
         }
 
@@ -153,7 +158,23 @@ public sealed class HeuristicEngine
             });
         }
 
+        ApplyGatedYara(sample.Bytes, kind, peInfo, yaraGateScore, findings, notes);
+
         return new HeuristicAnalysis(kind, findings, indicators, peInfo, notes);
+    }
+
+    private void ApplyGatedYara(byte[] data, FileKind kind, PeFileInfo? peInfo, int gateScore,
+        List<Detection> findings, List<string> notes)
+    {
+        var score = Math.Min(100, findings.Sum(detection => detection.Score));
+        if (gateScore <= 0 || score >= gateScore)
+        {
+            AddYaraFindings(data, kind, peInfo, findings, notes);
+        }
+        else if (_signatures.Yara.RuleCount > 0)
+        {
+            notes.Add($"启发式评分 {score} 未达 YARA 门槛 {gateScore}，已跳过完整规则匹配。");
+        }
     }
 
     private void AddYaraFindings(byte[] data, FileKind kind, PeFileInfo? peInfo, List<Detection> findings, List<string> notes)
@@ -173,7 +194,8 @@ public sealed class HeuristicEngine
         YaraScanResult result;
         try
         {
-            result = ruleSet.Scan(TruncateYaraSample(data), peInfo);
+            var parallelism = Math.Clamp(Environment.ProcessorCount / 2, 1, 4);
+            result = ruleSet.Scan(TruncateYaraSample(data), peInfo, parallelism);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {

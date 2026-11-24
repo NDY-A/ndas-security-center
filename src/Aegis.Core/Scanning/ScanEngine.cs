@@ -8,7 +8,11 @@ namespace Aegis.Core.Scanning;
 public sealed class ScanEngine
 {
     private const int MaxRecordedErrors = 100;
+    // Each report is posted to the UI thread; unthrottled per-file reports let the
+    // dispatcher queue outgrow the UI's ability to drain it.
+    private const int ProgressReportIntervalMs = 200;
     private readonly AegisScanner _scanner;
+    private long _lastProgressReportTick;
 
     public ScanEngine(AegisScanner scanner)
     {
@@ -122,13 +126,17 @@ public sealed class ScanEngine
                             if (result.Verdict == ThreatVerdict.Skipped)
                             {
                                 Interlocked.Increment(ref filesSkipped);
-                                progress?.Report(new ScanProgress
+                                if (progress is not null && TryAcquireProgressSlot())
                                 {
-                                    FilesScanned = Volatile.Read(ref filesScanned),
-                                    Detections = Volatile.Read(ref maliciousCount) + Volatile.Read(ref suspiciousCount),
-                                    Skipped = Volatile.Read(ref filesSkipped),
-                                    CurrentPath = file
-                                });
+                                    progress.Report(new ScanProgress
+                                    {
+                                        FilesScanned = Volatile.Read(ref filesScanned),
+                                        Detections = Volatile.Read(ref maliciousCount) + Volatile.Read(ref suspiciousCount),
+                                        Skipped = Volatile.Read(ref filesSkipped),
+                                        CurrentPath = file
+                                    });
+                                }
+
                                 return;
                             }
 
@@ -159,14 +167,17 @@ public sealed class ScanEngine
                                     break;
                             }
 
-                            progress?.Report(new ScanProgress
+                            if (progress is not null && TryAcquireProgressSlot())
                             {
-                                FilesScanned = Volatile.Read(ref filesScanned),
-                                Detections = Volatile.Read(ref maliciousCount) + Volatile.Read(ref puaCount) +
-                                             Volatile.Read(ref attentionCount) + Volatile.Read(ref suspiciousCount),
-                                Skipped = Volatile.Read(ref filesSkipped),
-                                CurrentPath = file
-                            });
+                                progress.Report(new ScanProgress
+                                {
+                                    FilesScanned = Volatile.Read(ref filesScanned),
+                                    Detections = Volatile.Read(ref maliciousCount) + Volatile.Read(ref puaCount) +
+                                                 Volatile.Read(ref attentionCount) + Volatile.Read(ref suspiciousCount),
+                                    Skipped = Volatile.Read(ref filesSkipped),
+                                    CurrentPath = file
+                                });
+                            }
                         }
                         catch (OperationCanceledException) when (token.IsCancellationRequested)
                         {
@@ -372,6 +383,18 @@ public sealed class ScanEngine
         }
 
         return new ExclusionMatcher(paths);
+    }
+
+    private bool TryAcquireProgressSlot()
+    {
+        var now = Environment.TickCount64;
+        var last = Interlocked.Read(ref _lastProgressReportTick);
+        if (now - last < ProgressReportIntervalMs)
+        {
+            return false;
+        }
+
+        return Interlocked.CompareExchange(ref _lastProgressReportTick, now, last) == last;
     }
 
     private static void AddError(ConcurrentQueue<ScanError> errors, ref int count, ScanError error)

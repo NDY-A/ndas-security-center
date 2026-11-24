@@ -35,6 +35,7 @@ public sealed class ServiceConfiguration
     public bool SandboxAutoBlockNetwork { get; set; } = true;
     public int SandboxMaxRunSeconds { get; set; } = 60;
     public bool AgentModeEnabled { get; set; } = true;
+    public bool ExtendedRuleEngineIIEnabled { get; set; }
     public string InvestigationRemediateMode { get; set; } = "auto";
 }
 
@@ -101,6 +102,8 @@ public sealed class ServiceStatus
     public long ThreatsFound { get; set; }
     public string? SignatureVersion { get; set; }
     public int YaraRuleCount { get; set; }
+    public bool? ExtendedRuleEngineIIEnabled { get; set; }
+    public bool? ExtendedRuleEngineIIActive { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
     public List<ServiceEvent> RecentEvents { get; set; } = new();
     public List<string> WatchedPaths { get; set; } = new();

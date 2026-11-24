@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text.Json;
 using Aegis.Core.Infrastructure;
 using Aegis.Core.Yara;
 
@@ -28,7 +29,8 @@ public sealed class SignatureRepository
 
     public string SeedDirectory => _seedDirectory;
 
-    public async Task<SignatureSnapshot> LoadAsync(CancellationToken cancellationToken = default)
+    public async Task<SignatureSnapshot> LoadAsync(CancellationToken cancellationToken = default,
+        bool includeExtendedRulePack = true)
     {
         var warnings = new List<string>();
 
@@ -38,7 +40,9 @@ public sealed class SignatureRepository
             {
                 return await LoadDirectoryAsync(CurrentDirectory, cancellationToken,
                     Path.Combine(_seedDirectory, "yara"),
-                    Path.Combine(_seedDirectory, SpecialPathMatcher.FileName)).ConfigureAwait(false);
+                    Path.Combine(_seedDirectory, SpecialPathMatcher.FileName),
+                    Path.Combine(_seedDirectory, TrustedHashIndex.RelativePath),
+                    includeExtendedRulePack).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -61,7 +65,8 @@ public sealed class SignatureRepository
 
         try
         {
-            var snapshot = await LoadDirectoryAsync(_seedDirectory, cancellationToken).ConfigureAwait(false);
+            var snapshot = await LoadDirectoryAsync(_seedDirectory, cancellationToken,
+                includeExtendedRulePack: includeExtendedRulePack).ConfigureAwait(false);
             return new SignatureSnapshot
             {
                 Version = snapshot.Version,
@@ -74,6 +79,9 @@ public sealed class SignatureRepository
                 IpAddresses = snapshot.IpAddresses,
                 Yara = snapshot.Yara,
                 SpecialPaths = snapshot.SpecialPaths,
+                TrustedHashes = snapshot.TrustedHashes,
+                ExtendedRuleEngineIIEnabled = snapshot.ExtendedRuleEngineIIEnabled,
+                ExtendedRulePackSkippedFiles = snapshot.ExtendedRulePackSkippedFiles,
                 Warnings = warnings.Concat(snapshot.Warnings).ToArray()
             };
         }
@@ -84,7 +92,8 @@ public sealed class SignatureRepository
     }
 
     public static async Task<SignatureSnapshot> LoadDirectoryAsync(string directory, CancellationToken cancellationToken,
-        string? yaraFallbackDirectory = null, string? specialPathFallbackFile = null)
+        string? yaraFallbackDirectory = null, string? specialPathFallbackFile = null,
+        string? trustedHashFallbackFile = null, bool includeExtendedRulePack = true)
     {
         var manifestPath = Path.Combine(directory, "manifest.json");
         var manifest = await SignatureManifest.ReadAsync(manifestPath, cancellationToken).ConfigureAwait(false);
@@ -98,7 +107,7 @@ public sealed class SignatureRepository
             }
         }
 
-        var fileBytes = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+        var filePaths = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var fileName in RequiredFiles)
         {
             var path = Path.Combine(directory, fileName);
@@ -108,28 +117,21 @@ public sealed class SignatureRepository
                 throw new FileNotFoundException($"病毒库文件缺失：{fileName}", path);
             }
 
-            if (info.Length > 16 * 1024 * 1024)
+            if (info.Length > SignatureFileLimits.MaxBytes)
             {
                 throw new InvalidDataException($"病毒库文件 {fileName} 大小异常。");
             }
 
-            var bytes = await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
-            var actualHash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
-            var expected = manifest.Files[fileName].Sha256;
-            if (!expected.Equals(actualHash, StringComparison.OrdinalIgnoreCase))
-            {
-                throw new InvalidDataException($"病毒库文件 {fileName} 的 SHA-256 与清单不一致。");
-            }
-
-            if (manifest.Files[fileName].Bytes > 0 && manifest.Files[fileName].Bytes != bytes.LongLength)
+            await VerifyDigestAsync(path, fileName, manifest.Files[fileName].Sha256, cancellationToken).ConfigureAwait(false);
+            if (manifest.Files[fileName].Bytes > 0 && manifest.Files[fileName].Bytes != info.Length)
             {
                 warnings.Add($"{fileName} 的字节数与清单记录不一致。");
             }
 
-            fileBytes[fileName] = bytes;
+            filePaths[fileName] = path;
         }
 
-        byte[]? specialPathBytes = null;
+        string? specialPathFile = null;
         if (manifest.Files.TryGetValue(SpecialPathMatcher.FileName, out var specialPathManifest))
         {
             var path = Path.Combine(directory, SpecialPathMatcher.FileName);
@@ -139,43 +141,39 @@ public sealed class SignatureRepository
                 throw new FileNotFoundException($"病毒库文件缺失：{SpecialPathMatcher.FileName}", path);
             }
 
-            if (info.Length > 4 * 1024 * 1024)
+            if (info.Length > SignatureFileLimits.MaxBytes)
             {
                 throw new InvalidDataException($"病毒库文件 {SpecialPathMatcher.FileName} 大小异常。");
             }
 
-            specialPathBytes = await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
-            var actualHash = Convert.ToHexString(SHA256.HashData(specialPathBytes)).ToLowerInvariant();
-            if (!specialPathManifest.Sha256.Equals(actualHash, StringComparison.OrdinalIgnoreCase))
-            {
-                throw new InvalidDataException($"病毒库文件 {SpecialPathMatcher.FileName} 的 SHA-256 与清单不一致。");
-            }
-
-            if (specialPathManifest.Bytes > 0 && specialPathManifest.Bytes != specialPathBytes.LongLength)
+            await VerifyDigestAsync(path, SpecialPathMatcher.FileName, specialPathManifest.Sha256, cancellationToken).ConfigureAwait(false);
+            if (specialPathManifest.Bytes > 0 && specialPathManifest.Bytes != info.Length)
             {
                 warnings.Add($"{SpecialPathMatcher.FileName} 的字节数与清单记录不一致。");
             }
+
+            specialPathFile = path;
         }
         else if (!string.IsNullOrWhiteSpace(specialPathFallbackFile) && File.Exists(specialPathFallbackFile))
         {
-            specialPathBytes = await File.ReadAllBytesAsync(specialPathFallbackFile, cancellationToken).ConfigureAwait(false);
+            specialPathFile = specialPathFallbackFile;
             warnings.Add("当前病毒库未包含特殊路径列表，已使用内置列表。");
         }
 
         HashParseResult hashResult;
         IndicatorParseResult domainResult;
         IndicatorParseResult ipResult;
-        await using (var stream = new MemoryStream(fileBytes[BlocklistParser.HashFileName], writable: false))
+        await using (var stream = OpenRead(filePaths[BlocklistParser.HashFileName]))
         {
             hashResult = await BlocklistParser.ParseHashesAsync(stream, cancellationToken).ConfigureAwait(false);
         }
 
-        await using (var stream = new MemoryStream(fileBytes[BlocklistParser.DomainFileName], writable: false))
+        await using (var stream = OpenRead(filePaths[BlocklistParser.DomainFileName]))
         {
             domainResult = await BlocklistParser.ParseDomainsAsync(stream, cancellationToken).ConfigureAwait(false);
         }
 
-        await using (var stream = new MemoryStream(fileBytes[BlocklistParser.IpFileName], writable: false))
+        await using (var stream = OpenRead(filePaths[BlocklistParser.IpFileName]))
         {
             ipResult = await BlocklistParser.ParseIpsAsync(stream, cancellationToken).ConfigureAwait(false);
         }
@@ -190,19 +188,53 @@ public sealed class SignatureRepository
         warnings.AddRange(ipResult.Warnings);
 
         SpecialPathMatcher specialPaths = SpecialPathMatcher.Empty;
-        if (specialPathBytes is not null)
+        if (specialPathFile is not null)
         {
-            await using var stream = new MemoryStream(specialPathBytes, writable: false);
+            await using var stream = OpenRead(specialPathFile);
             var specialResult = await SpecialPathParser.ParseAsync(stream, cancellationToken).ConfigureAwait(false);
             specialPaths = specialResult.Matcher;
             warnings.AddRange(specialResult.Warnings);
         }
 
+        TrustedHashIndex trustedHashes = TrustedHashIndex.Empty;
+        var trustedHashPath = Path.Combine(directory, TrustedHashIndex.RelativePath);
+        if (File.Exists(trustedHashPath))
+        {
+            try
+            {
+                trustedHashes = await TrustedHashIndex.LoadAsync(trustedHashPath, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException)
+            {
+                warnings.Add("可信哈希库加载失败：" + SafeMessage(exception));
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(trustedHashFallbackFile) && File.Exists(trustedHashFallbackFile))
+        {
+            try
+            {
+                trustedHashes = await TrustedHashIndex.LoadAsync(trustedHashFallbackFile, cancellationToken).ConfigureAwait(false);
+                warnings.Add("当前病毒库未包含可信哈希库，已使用内置列表。");
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException)
+            {
+                warnings.Add("内置可信哈希库加载失败：" + SafeMessage(exception));
+            }
+        }
+
+        var excludedYaraFiles = includeExtendedRulePack
+            ? null
+            : ResolveExtendedPackFileNames(Path.Combine(directory, "yara"));
         YaraRuleSet yaraRules;
         try
         {
-            yaraRules = YaraRuleSet.LoadDirectory(Path.Combine(directory, "yara"));
+            yaraRules = YaraRuleSet.LoadDirectory(Path.Combine(directory, "yara"), excludedYaraFiles);
             warnings.AddRange(yaraRules.Warnings);
+            if (excludedYaraFiles is { Count: > 0 })
+            {
+                warnings.Add($"增强型规则引擎 II 未启用，跳过 {excludedYaraFiles.Count} 个扩展规则分片" +
+                             $"（已加载 {yaraRules.RuleCount:N0} 条 YARA 规则）。");
+            }
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
@@ -244,7 +276,8 @@ public sealed class SignatureRepository
                 warnings.Add($"IP 数量与清单不一致（清单 {manifest.Counts.Ips}，实际 {ipResult.Values.Count}）。");
             }
 
-            if (manifest.Counts.YaraRules != 0 && manifest.Counts.YaraRules != yaraRules.RuleCount)
+            if (manifest.Counts.YaraRules != 0 && manifest.Counts.YaraRules != yaraRules.RuleCount &&
+                excludedYaraFiles is not { Count: > 0 })
             {
                 warnings.Add($"YARA 规则数量与清单不一致（清单 {manifest.Counts.YaraRules}，实际 {yaraRules.RuleCount}）。");
             }
@@ -267,8 +300,85 @@ public sealed class SignatureRepository
             IpAddresses = new IpMatcher(ipResult.Values.Keys),
             Yara = yaraRules,
             SpecialPaths = specialPaths,
+            TrustedHashes = trustedHashes,
+            ExtendedRuleEngineIIEnabled = includeExtendedRulePack,
+            ExtendedRulePackSkippedFiles = excludedYaraFiles?.Count ?? 0,
             Warnings = warnings
         };
+    }
+
+    public static IReadOnlyCollection<string> ResolveExtendedPackFileNames(string yaraDirectory)
+    {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var packManifestPath = Path.Combine(yaraDirectory, "defender", "manifest.json");
+        if (File.Exists(packManifestPath))
+        {
+            try
+            {
+                using var document = JsonDocument.Parse(File.ReadAllText(packManifestPath));
+                if (document.RootElement.TryGetProperty("files", out var filesElement) &&
+                    filesElement.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var entry in filesElement.EnumerateArray())
+                    {
+                        var name = entry.TryGetProperty("name", out var nameElement) ? nameElement.GetString() : null;
+                        if (!string.IsNullOrWhiteSpace(name))
+                        {
+                            names.Add(Path.GetFileName(name));
+                        }
+                    }
+                }
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
+            {
+                // 包清单损坏时退回按文件名模式识别扩展分片。
+            }
+        }
+
+        try
+        {
+            foreach (var path in Directory.EnumerateFiles(yaraDirectory, "defender-patterns-*", SearchOption.TopDirectoryOnly))
+            {
+                var extension = Path.GetExtension(path);
+                if (extension.Equals(".yar", StringComparison.OrdinalIgnoreCase) ||
+                    extension.Equals(".yara", StringComparison.OrdinalIgnoreCase))
+                {
+                    names.Add(Path.GetFileName(path));
+                }
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+        }
+
+        return names;
+    }
+
+    private static FileStream OpenRead(string path) => new(path, FileMode.Open, FileAccess.Read, FileShare.Read,
+        1024 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
+
+    private static async Task VerifyDigestAsync(string path, string fileName, string expectedSha256,
+        CancellationToken cancellationToken)
+    {
+        await using var stream = OpenRead(path);
+        using var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        var buffer = new byte[1024 * 1024];
+        while (true)
+        {
+            var read = await stream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+            if (read == 0)
+            {
+                break;
+            }
+
+            hasher.AppendData(buffer, 0, read);
+        }
+
+        var actualHash = Convert.ToHexString(hasher.GetHashAndReset()).ToLowerInvariant();
+        if (!expectedSha256.Equals(actualHash, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException($"病毒库文件 {fileName} 的 SHA-256 与清单不一致。");
+        }
     }
 
     private static string SafeMessage(Exception exception) => exception switch

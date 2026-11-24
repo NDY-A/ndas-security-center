@@ -19,7 +19,7 @@ namespace Aegis.App.Services;
 public sealed class AppServices : IAsyncDisposable
 {
     public const string ProductName = "NDAS 安全中心";
-    public const string ProductVersion = "rs_preelease-0.0.12.0a";
+    public const string ProductVersion = "rs_preelease-0.0.14.0a";
 
     private readonly object _initLock = new();
     private readonly object _scannerLock = new();
@@ -46,6 +46,7 @@ public sealed class AppServices : IAsyncDisposable
     private readonly HashSet<string> _seenServiceEvents = new(StringComparer.Ordinal);
     private bool _serviceEventsInitialized;
     private CancellationTokenSource? _realtimeScanCancellation;
+    private bool _extendedRuleEngineIIActive;
 
     public static AppServices Current { get; } = new();
 
@@ -80,6 +81,8 @@ public sealed class AppServices : IAsyncDisposable
     public CloudReputationClient? Cloud => Volatile.Read(ref _cloud);
 
     public SignatureSnapshot? Signatures => Volatile.Read(ref _signatures);
+
+    public bool ExtendedRuleEngineIIActive => _extendedRuleEngineIIActive;
 
     public HipsService? Hips => _hips;
 
@@ -141,6 +144,8 @@ public sealed class AppServices : IAsyncDisposable
 
             SettingsStore = new AppSettingsStore(AppPaths.SettingsFile);
             Settings = await SettingsStore.LoadAsync().ConfigureAwait(false);
+            // 引擎 II 开关按启动时的设置生效，重载/更新不得热套用，必须重启。
+            _extendedRuleEngineIIActive = Settings.ExtendedRuleEngineIIEnabled;
             ThreatReminderService.Configure(Settings.NotificationsEnabled);
             Coordinator.JobCompleted += OnScanJobCompleted;
             SeedDirectory = Path.Combine(applicationDirectory, "Seed");
@@ -150,7 +155,8 @@ public sealed class AppServices : IAsyncDisposable
             }
 
             _signatureRepository = new SignatureRepository(AppPaths.SignatureRoot, SeedDirectory);
-            _signatures = await _signatureRepository.LoadAsync().ConfigureAwait(false);
+            _signatures = await _signatureRepository.LoadAsync(
+                includeExtendedRulePack: _extendedRuleEngineIIActive).ConfigureAwait(false);
             _updater = new SignatureUpdater(AppPaths.SignatureRoot);
 
             _cloudTokenStore = new SecretFileStore(Path.Combine(AppPaths.SecretsRoot, "cloud-api.key"));
@@ -286,7 +292,7 @@ public sealed class AppServices : IAsyncDisposable
 
             if (result.Success && !result.IsUpToDate)
             {
-                var snapshot = await _signatureRepository.LoadAsync(cancellationToken).ConfigureAwait(false);
+                var snapshot = await _signatureRepository.LoadAsync(cancellationToken, _extendedRuleEngineIIActive).ConfigureAwait(false);
                 Volatile.Write(ref _signatures, snapshot);
                 ReplaceScanner(snapshot);
             }
@@ -696,6 +702,11 @@ public sealed class AppServices : IAsyncDisposable
             Settings.SandboxEnabled = status.SandboxEnabled;
             Settings.SandboxAutoRemediate = status.SandboxAutoRemediate;
         }
+
+        if (status.ExtendedRuleEngineIIEnabled is { } extendedEngineII)
+        {
+            Settings.ExtendedRuleEngineIIEnabled = extendedEngineII;
+        }
     }
 
     private ServiceConfiguration BuildServiceConfiguration() => new()
@@ -713,6 +724,7 @@ public sealed class AppServices : IAsyncDisposable
         SandboxEnabled = Settings.SandboxEnabled,
         SandboxAutoRemediate = Settings.SandboxAutoRemediate,
         SandboxMaxRunSeconds = Settings.SandboxMaxRunSeconds,
+        ExtendedRuleEngineIIEnabled = Settings.ExtendedRuleEngineIIEnabled,
         AgentModeEnabled = Settings.AgentModeEnabled,
         InvestigationRemediateMode = Settings.InvestigationRemediateMode
     };
@@ -831,6 +843,8 @@ public sealed class AppServices : IAsyncDisposable
             SandboxEnabled = Settings.SandboxEnabled,
             SandboxAutoRemediate = Settings.SandboxAutoRemediate,
             SandboxLastError = "高熵样本沙箱分析需要 NDAS 防护服务。",
+            ExtendedRuleEngineIIEnabled = Settings.ExtendedRuleEngineIIEnabled,
+            ExtendedRuleEngineIIActive = _extendedRuleEngineIIActive,
             LastError = _hips.LastError,
             EventCount = _hips.EventCount,
             UpdatedAt = DateTimeOffset.UtcNow
@@ -1499,6 +1513,21 @@ public sealed class AppServices : IAsyncDisposable
         EnsureReady();
         EnsureElevatedSettings();
         Settings.SandboxEnabled = enabled;
+
+        if (_useService)
+        {
+            await ApplyServiceConfigurationAsync().ConfigureAwait(false);
+        }
+
+        await SaveSettingsAsync().ConfigureAwait(false);
+        RaiseStateChanged();
+    }
+
+    public async Task SetExtendedRuleEngineIIEnabledAsync(bool enabled)
+    {
+        EnsureReady();
+        EnsureElevatedSettings();
+        Settings.ExtendedRuleEngineIIEnabled = enabled;
 
         if (_useService)
         {

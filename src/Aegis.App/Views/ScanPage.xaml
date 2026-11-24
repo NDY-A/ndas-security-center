@@ -13,7 +13,6 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <Grid Grid.Row="0">
@@ -95,7 +94,7 @@
                             <StackPanel Orientation="Horizontal" Spacing="18" Margin="0,4,0,0">
                                 <HyperlinkButton Content="扫描选项" Click="ScrollToScanOptions_Click" Padding="0" FontSize="13" />
                                 <HyperlinkButton Content="允许的威胁" Click="NavigateHips_Click" Padding="0" FontSize="13" />
-                                <HyperlinkButton Content="保护历史记录" Click="ScrollToResults_Click" Padding="0" FontSize="13" />
+                                <HyperlinkButton Content="保护历史记录" Click="NavigateHistory_Click" Padding="0" FontSize="13" />
                             </StackPanel>
 
                             <InfoBar x:Name="ScanInfo" IsOpen="False" IsClosable="True" />
@@ -217,62 +216,6 @@
                 </StackPanel>
             </Grid>
 
-            <Border x:Name="ResultsCard" Grid.Row="2" Style="{StaticResource AegisCardStyle}">
-                <StackPanel Spacing="12">
-                    <StackPanel Spacing="2">
-                        <TextBlock Text="保护历史记录" Style="{StaticResource AegisSectionTitleStyle}" />
-                        <TextBlock x:Name="LastScanText" Text="尚未运行扫描。" Style="{StaticResource AegisCaptionStyle}" />
-                    </StackPanel>
-
-                    <ListView x:Name="ResultsList" SelectionMode="None" MaxHeight="420" Visibility="Collapsed">
-                        <ListView.ItemTemplate>
-                            <DataTemplate>
-                                <Grid Padding="2,10" ColumnSpacing="12">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="62" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <Border Background="{Binding BadgeBackground}" CornerRadius="999" Padding="9,4" VerticalAlignment="Top">
-                                        <TextBlock Text="{Binding VerdictText}" FontSize="11" FontWeight="SemiBold"
-                                                   Foreground="{Binding BadgeForeground}" />
-                                    </Border>
-                                    <StackPanel Grid.Column="1" Spacing="3">
-                                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Text="{Binding FilePath}" Style="{StaticResource AegisCaptionStyle}"
-                                                   TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Text="{Binding Detail}" Style="{StaticResource AegisCaptionStyle}" />
-                                    </StackPanel>
-                                    <TextBlock Grid.Column="2" Text="{Binding ScoreText}" Style="{StaticResource AegisCaptionStyle}"
-                                               VerticalAlignment="Top" />
-                                    <StackPanel Grid.Column="3" Spacing="4" VerticalAlignment="Top" HorizontalAlignment="Right">
-                                        <StackPanel Orientation="Horizontal" Spacing="6" Visibility="{Binding ActionsVisibility}">
-                                            <Button Content="隔离" Click="QuarantineFinding_Click" Padding="10,4" FontSize="12" />
-                                            <Button Content="删除" Click="DeleteFinding_Click" Padding="10,4" FontSize="12" />
-                                            <Button Content="允许" Click="AllowFinding_Click" Padding="10,4" FontSize="12" />
-                                        </StackPanel>
-                                        <TextBlock Text="{Binding ActionStatus}" Style="{StaticResource AegisCaptionStyle}"
-                                                   Visibility="{Binding StatusVisibility}" HorizontalAlignment="Right" />
-                                    </StackPanel>
-                                </Grid>
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
-
-                    <Border x:Name="EmptyResultsPanel" Background="{ThemeResource SubtleFillColorSecondaryBrush}"
-                            CornerRadius="10" Padding="18">
-                        <StackPanel Spacing="5">
-                            <TextBlock Text="还没有发现项" FontWeight="SemiBold" />
-                            <TextBlock Text="扫描完成后，命中的哈希、启发式规则和云判定会显示在这里。"
-                                       Style="{StaticResource AegisCaptionStyle}" />
-                        </StackPanel>
-                    </Border>
-
-                    <TextBlock Text="扫描结果可执行隔离、删除或加入白名单；隔离文件可在“威胁和防护设置 &gt; 隔离区”还原。云查询只发送文件 SHA-256、大小和判定请求，不发送文件内容或本地路径。"
-                               Style="{StaticResource AegisCaptionStyle}" />
-                </StackPanel>
-            </Border>
         </Grid>
     </ScrollViewer>
 </Page>

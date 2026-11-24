@@ -14,7 +14,8 @@ var repository = new SignatureRepository(AppPaths.SignatureRoot, args[0]);
 var snapshot = await repository.LoadAsync();
 Console.WriteLine(
     $"signatures={snapshot.Version} hashes={snapshot.HashCount} yara={snapshot.YaraRuleCount} " +
-    $"specialPaths={snapshot.SpecialPathCount} ml={(MlEngine.IsAvailable ? MlEngine.Status : "unavailable")}");
+    $"specialPaths={snapshot.SpecialPathCount} trusted={snapshot.TrustedHashCount} " +
+    $"ml={(MlEngine.IsAvailable ? MlEngine.Status : "unavailable")}");
 
 var scanner = new AegisScanner(snapshot);
 foreach (var path in args[1..])

@@ -103,6 +103,7 @@ public sealed partial class HipsPage : Page
             FirewallBlockToggle.IsOn = settings.FirewallAutoBlockEnabled;
             SandboxToggle.IsOn = settings.SandboxEnabled;
             SandboxRemediateToggle.IsOn = settings.SandboxAutoRemediate;
+            ExtendedEngineIIToggle.IsOn = settings.ExtendedRuleEngineIIEnabled;
             NotificationsToggle.IsOn = settings.NotificationsEnabled;
             AutoStartToggle.IsOn = settings.AutoStartEnabled;
         }
@@ -164,6 +165,7 @@ public sealed partial class HipsPage : Page
             : AutoStartService.IsEnabled()
                 ? "已注册登录启动（--background，隐藏到托盘运行）。"
                 : "未注册登录启动。";
+        UpdateExtendedEngineIIStatus(services, status);
 
         if (!services.IsInitialized)
         {
@@ -172,9 +174,6 @@ public sealed partial class HipsPage : Page
             EventCountText.Text = "0";
             CriticalCountText.Text = "0";
             LastErrorText.Text = services.HipsLastError ?? "—";
-            EventList.ItemsSource = null;
-            EventList.Visibility = Visibility.Collapsed;
-            EmptyEventsPanel.Visibility = Visibility.Visible;
             return;
         }
 
@@ -196,11 +195,26 @@ public sealed partial class HipsPage : Page
         var recent = services.HipsEvents;
         EventCountText.Text = services.HipsEventCount.ToString("N0");
         CriticalCountText.Text = recent.Count(hipsEvent => hipsEvent.Severity == HipsSeverity.Critical).ToString("N0");
+    }
 
-        var rows = recent.Select(HipsEventRow.From).ToArray();
-        EventList.ItemsSource = rows;
-        EventList.Visibility = rows.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
-        EmptyEventsPanel.Visibility = rows.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+    private void UpdateExtendedEngineIIStatus(AppServices services, Aegis.Core.Service.ServiceStatus? status)
+    {
+        if (!services.IsInitialized)
+        {
+            ExtendedEngineIIStatusText.Text = "—";
+            return;
+        }
+
+        var active = services.UseService
+            ? status?.ExtendedRuleEngineIIActive == true
+            : services.ExtendedRuleEngineIIActive;
+        var loadedRules = services.UseService
+            ? status?.YaraRuleCount ?? 0
+            : services.Signatures?.YaraRuleCount ?? 0;
+        var configured = services.Settings.ExtendedRuleEngineIIEnabled;
+        ExtendedEngineIIStatusText.Text =
+            $"当前运行：{(active ? "开启" : "关闭")} · 已加载 {loadedRules:N0} 条 YARA 规则" +
+            (configured != active ? " · 重启 NDAS 后按新设置加载" : string.Empty);
     }
 
     private void UpdateSandboxStatus(AppServices services, Aegis.Core.Service.ServiceStatus? status)
@@ -319,6 +333,32 @@ public sealed partial class HipsPage : Page
         {
             ShowSandboxInfo(InfoBarSeverity.Error, "保存失败", exception.Message);
             RevertToggle(SandboxRemediateToggle, !enabled);
+        }
+
+        RefreshStatus();
+    }
+
+    private async void ExtendedEngineIIToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_suppressToggles || !_ready ||
+            ExtendedEngineIIToggle.IsOn == App.Services.Settings.ExtendedRuleEngineIIEnabled)
+        {
+            return;
+        }
+
+        var enabled = ExtendedEngineIIToggle.IsOn;
+        try
+        {
+            await App.Services.SetExtendedRuleEngineIIEnabledAsync(enabled);
+            ShowExtendedEngineIIInfo(InfoBarSeverity.Warning, "重启 NDAS 后生效",
+                enabled
+                    ? "增强型规则引擎 II 已启用：重启 NDAS 后将加载扩展规则包，进程至少占用 5 GB 内存。"
+                    : "增强型规则引擎 II 已关闭：重启 NDAS 后只加载基础规则集。");
+        }
+        catch (Exception exception)
+        {
+            ShowExtendedEngineIIInfo(InfoBarSeverity.Error, "保存失败", exception.Message);
+            RevertToggle(ExtendedEngineIIToggle, !enabled);
         }
 
         RefreshStatus();
@@ -869,6 +909,14 @@ public sealed partial class HipsPage : Page
         QuarantineInfo.Message = message;
         QuarantineInfo.IsOpen = true;
     }
+
+    private void ShowExtendedEngineIIInfo(InfoBarSeverity severity, string title, string message)
+    {
+        ExtendedEngineIIInfo.Severity = severity;
+        ExtendedEngineIIInfo.Title = title;
+        ExtendedEngineIIInfo.Message = message;
+        ExtendedEngineIIInfo.IsOpen = true;
+    }
 }
 
 public sealed class QuarantineRow
@@ -897,71 +945,3 @@ public sealed class QuarantineRow
     };
 }
 
-public sealed class HipsEventRow
-{
-    public required string SeverityText { get; init; }
-    public required string Title { get; init; }
-    public required string Detail { get; init; }
-    public required string RuleId { get; init; }
-    public required string TimeText { get; init; }
-    public required Brush BadgeBackground { get; init; }
-    public required Brush BadgeForeground { get; init; }
-
-    public static HipsEventRow From(HipsEvent hipsEvent)
-    {
-        var (backgroundKey, foregroundKey, fallbackBackground, fallbackForeground) = hipsEvent.Severity switch
-        {
-            HipsSeverity.Critical => ("AegisDangerSoftBrush", "AegisDangerTextBrush",
-                Color.FromArgb(255, 253, 231, 233), Color.FromArgb(255, 138, 28, 16)),
-            HipsSeverity.High => ("AegisWarningSoftBrush", "AegisWarningTextBrush",
-                Color.FromArgb(255, 255, 244, 206), Color.FromArgb(255, 107, 64, 0)),
-            HipsSeverity.Medium => ("AegisWarningSoftBrush", "AegisWarningTextBrush",
-                Color.FromArgb(255, 255, 244, 206), Color.FromArgb(255, 107, 64, 0)),
-            _ => ("AegisAccentSoftBrush", "AegisAccentTextBrush",
-                Color.FromArgb(255, 232, 241, 251), Color.FromArgb(255, 15, 108, 189))
-        };
-
-        var detail = hipsEvent.Detail;
-        if (!string.IsNullOrWhiteSpace(hipsEvent.CommandLine))
-        {
-            detail += " 命令行：" + hipsEvent.CommandLine;
-        }
-        else if (!string.IsNullOrWhiteSpace(hipsEvent.ProcessPath))
-        {
-            detail += " 进程：" + hipsEvent.ProcessPath;
-        }
-
-        if (hipsEvent.Blocked)
-        {
-            detail += " · 已拦截";
-        }
-
-        return new HipsEventRow
-        {
-            SeverityText = hipsEvent.Severity switch
-            {
-                HipsSeverity.Critical => "严重",
-                HipsSeverity.High => "高危",
-                HipsSeverity.Medium => "中危",
-                HipsSeverity.Low => "低危",
-                _ => "信息"
-            },
-            Title = hipsEvent.Title,
-            Detail = detail,
-            RuleId = hipsEvent.RuleId,
-            TimeText = hipsEvent.Timestamp.ToLocalTime().ToString("HH:mm:ss"),
-            BadgeBackground = BrushResource(backgroundKey, fallbackBackground),
-            BadgeForeground = BrushResource(foregroundKey, fallbackForeground)
-        };
-    }
-
-    private static Brush BrushResource(string key, Color fallback)
-    {
-        if (Application.Current.Resources.TryGetValue(key, out var value) && value is Brush brush)
-        {
-            return brush;
-        }
-
-        return new SolidColorBrush(fallback);
-    }
-}

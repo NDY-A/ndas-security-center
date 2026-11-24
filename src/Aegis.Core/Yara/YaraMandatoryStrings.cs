@@ -15,64 +15,59 @@ namespace Aegis.Core.Yara;
 public static class YaraMandatoryStrings
 {
     /// <summary>返回规则内字符串索引（对应 YaraStringMatchExpression.Index）。</summary>
-    public static HashSet<int> Collect(YaraExpression condition)
+    public static HashSet<int> Collect(YaraExpression condition) => CollectSet(condition);
+
+    private static HashSet<int> CollectSet(YaraExpression root)
     {
         var result = new HashSet<int>();
-        Walk(condition, result);
-        return result;
-    }
-
-    private static void Walk(YaraExpression expr, HashSet<int> acc)
-    {
-        switch (expr)
+        var stack = new Stack<YaraExpression>();
+        stack.Push(root);
+        while (stack.Count > 0)
         {
-            case YaraStringMatchExpression match:
-                acc.Add(match.Index);
-                break;
-
-            case YaraStringSetExpression set when set.Quantifier == YaraSetQuantifier.All:
-                foreach (var index in set.Indices)
-                {
-                    acc.Add(index);
-                }
-
-                break;
-
-            // Count / Any：没有任何单个字符串是必要条件
-            case YaraStringSetExpression:
-                break;
-
-            case YaraBinaryExpression binary when binary.Operator == YaraBinaryOperator.And:
-                Walk(binary.Left, acc);
-                Walk(binary.Right, acc);
-                break;
-
-            case YaraBinaryExpression binary:
+            var expression = stack.Pop();
+            switch (expression)
             {
-                // or/xor/比较等：只有当两侧都必然命中时才成立
-                var left = new HashSet<int>();
-                Walk(binary.Left, left);
-                var right = new HashSet<int>();
-                Walk(binary.Right, right);
-                left.IntersectWith(right);
-                foreach (var index in left)
+                case YaraStringMatchExpression match:
+                    result.Add(match.Index);
+                    break;
+
+                case YaraStringSetExpression set when set.Quantifier == YaraSetQuantifier.All:
+                    foreach (var index in set.Indices)
+                    {
+                        result.Add(index);
+                    }
+
+                    break;
+
+                // Count / Any：没有任何单个字符串是必要条件
+                case YaraStringSetExpression:
+                    break;
+
+                case YaraBinaryExpression binary when binary.Operator == YaraBinaryOperator.And:
+                    stack.Push(binary.Left);
+                    stack.Push(binary.Right);
+                    break;
+
+                case YaraBinaryExpression binary:
                 {
-                    acc.Add(index);
+                    // or/xor/比较等：只有当两侧都必然命中时才成立
+                    var left = CollectSet(binary.Left);
+                    var right = CollectSet(binary.Right);
+                    left.IntersectWith(right);
+                    result.UnionWith(left);
+                    break;
                 }
 
-                break;
+                case YaraUnaryExpression unary when unary.Operator == YaraUnaryOperator.Negate:
+                    // not $a 成立意味着 $a 不命中，不能作为必要条件
+                    break;
+
+                case YaraUnaryExpression unary:
+                    stack.Push(unary.Operand);
+                    break;
             }
-
-            case YaraUnaryExpression unary when unary.Operator == YaraUnaryOperator.Negate:
-                // not $a 成立意味着 $a 不命中，不能作为必要条件
-                break;
-
-            case YaraUnaryExpression unary:
-                Walk(unary.Operand, acc);
-                break;
-
-            default:
-                break;
         }
+
+        return result;
     }
 }
