@@ -201,12 +201,27 @@ public sealed class SignatureUpdater
             warnings.AddRange(parsed.Warnings);
 
             var fetchedAt = DateTimeOffset.UtcNow;
+            var orderedFiles = stagedFiles.OrderBy(x => x.Key, StringComparer.Ordinal).ToArray();
+            // 各下载文件的摘要彼此独立，并行计算 SHA-256 以缩短更新安装时间。
+            var digests = new (string Sha256, long Bytes)[orderedFiles.Length];
+            await Parallel.ForEachAsync(
+                Enumerable.Range(0, orderedFiles.Length),
+                new ParallelOptions
+                {
+                    CancellationToken = cancellationToken,
+                    MaxDegreeOfParallelism = Math.Max(1, Math.Min(4, orderedFiles.Length))
+                },
+                async (index, ct) =>
+                {
+                    digests[index] = await HashFileAsync(orderedFiles[index].Value, ct).ConfigureAwait(false);
+                }).ConfigureAwait(false);
+
             var manifestFiles = new Dictionary<string, ManifestFileInfo>(StringComparer.OrdinalIgnoreCase);
             var digestText = new StringBuilder();
-            foreach (var pair in stagedFiles.OrderBy(x => x.Key, StringComparer.Ordinal))
+            for (var index = 0; index < orderedFiles.Length; index++)
             {
-                var (sha256, bytes) = await HashFileAsync(pair.Value, cancellationToken).ConfigureAwait(false);
-                manifestFiles[pair.Key] = new ManifestFileInfo { Sha256 = sha256, Bytes = bytes };
+                var (sha256, bytes) = digests[index];
+                manifestFiles[orderedFiles[index].Key] = new ManifestFileInfo { Sha256 = sha256, Bytes = bytes };
                 digestText.Append(bytes).Append(':').Append(sha256).Append(';');
             }
 
@@ -905,7 +920,7 @@ public sealed class SignatureUpdater
             }
         }
 
-        return new ParsedCounts(hashResult.Hashes.Count, domainResult.Values.Count, ipResult.Values.Count,
+        return new ParsedCounts(hashResult.Entries.Count, domainResult.Values.Count, ipResult.Values.Count,
             yaraRules, specialPaths, warnings);
     }
 

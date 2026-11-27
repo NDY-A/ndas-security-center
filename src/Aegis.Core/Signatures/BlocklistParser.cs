@@ -6,6 +6,7 @@ namespace Aegis.Core.Signatures;
 
 public sealed record HashParseResult(
     IReadOnlyDictionary<string, HashSignature> Hashes,
+    IReadOnlyList<HashSignature> Entries,
     IReadOnlyList<string> Warnings);
 
 public sealed record IndicatorParseResult(
@@ -21,6 +22,8 @@ public static class BlocklistParser
     public static async Task<HashParseResult> ParseHashesAsync(Stream stream, CancellationToken cancellationToken = default)
     {
         var hashes = new Dictionary<string, HashSignature>(StringComparer.OrdinalIgnoreCase);
+        var entries = new List<HashSignature>();
+        var seenKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var warnings = new List<string>();
         using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, leaveOpen: true);
 
@@ -60,19 +63,20 @@ public static class BlocklistParser
                 continue;
             }
 
-            var sha256 = fields[0].Trim().ToLowerInvariant();
-            if (!IsHexDigest(sha256, 64))
+            var sha256Raw = fields[0].Trim().ToLowerInvariant();
+            var sha256 = IsHexDigest(sha256Raw, 64) ? sha256Raw : string.Empty;
+            var md5 = NormalizeOptionalDigest(fields[1], 32);
+            var sha1 = NormalizeOptionalDigest(fields[2], 40);
+            if (sha256.Length == 0 && md5 is null && sha1 is null)
             {
                 if (warnings.Count < 40)
                 {
-                    warnings.Add($"hashes.csv 第 {lineNumber} 行 SHA-256 无效，已跳过。");
+                    warnings.Add($"hashes.csv 第 {lineNumber} 行没有有效的 SHA-256/MD5/SHA-1，已跳过。");
                 }
 
                 continue;
             }
 
-            var md5 = NormalizeOptionalDigest(fields[1], 32);
-            var sha1 = NormalizeOptionalDigest(fields[2], 40);
             var label = fields[3].Trim();
             var notes = fields.Count > 4 ? fields[4].Trim() : string.Empty;
             if (string.IsNullOrWhiteSpace(label))
@@ -80,21 +84,34 @@ public static class BlocklistParser
                 label = "未命名样本";
             }
 
-            if (!hashes.TryAdd(sha256, new HashSignature
-                {
-                    Sha256 = sha256,
-                    Md5 = md5,
-                    Sha1 = sha1,
-                    Label = label,
-                    Notes = string.IsNullOrWhiteSpace(notes) ? null : notes,
-                    ThreatName = HashSignature.ExtractThreatName(label) ?? HashSignature.ExtractThreatName(notes)
-                }) && warnings.Count < 40)
+            var dedupeKey = sha256.Length > 0 ? "s:" + sha256 : md5 is not null ? "m:" + md5 : "1:" + sha1;
+            if (!seenKeys.Add(dedupeKey))
             {
-                warnings.Add($"hashes.csv 第 {lineNumber} 行与已有 SHA-256 重复，已忽略。");
+                if (warnings.Count < 40)
+                {
+                    warnings.Add($"hashes.csv 第 {lineNumber} 行与已有条目重复，已忽略。");
+                }
+
+                continue;
+            }
+
+            var signature = new HashSignature
+            {
+                Sha256 = sha256,
+                Md5 = md5,
+                Sha1 = sha1,
+                Label = label,
+                Notes = string.IsNullOrWhiteSpace(notes) ? null : notes,
+                ThreatName = HashSignature.ExtractThreatName(label) ?? HashSignature.ExtractThreatName(notes)
+            };
+            entries.Add(signature);
+            if (sha256.Length > 0)
+            {
+                hashes[sha256] = signature;
             }
         }
 
-        return new HashParseResult(hashes, warnings);
+        return new HashParseResult(hashes, entries, warnings);
     }
 
     public static async Task<IndicatorParseResult> ParseDomainsAsync(Stream stream, CancellationToken cancellationToken = default)

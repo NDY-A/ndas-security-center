@@ -75,6 +75,7 @@ public sealed class SignatureRepository
                 IsSeed = true,
                 SourceDirectory = snapshot.SourceDirectory,
                 Hashes = snapshot.Hashes,
+                Entries = snapshot.Entries,
                 Domains = snapshot.Domains,
                 IpAddresses = snapshot.IpAddresses,
                 Yara = snapshot.Yara,
@@ -108,6 +109,7 @@ public sealed class SignatureRepository
         }
 
         var filePaths = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var verifications = new List<(string FileName, string Path, string Sha256)>();
         foreach (var fileName in RequiredFiles)
         {
             var path = Path.Combine(directory, fileName);
@@ -122,14 +124,19 @@ public sealed class SignatureRepository
                 throw new InvalidDataException($"病毒库文件 {fileName} 大小异常。");
             }
 
-            await VerifyDigestAsync(path, fileName, manifest.Files[fileName].Sha256, cancellationToken).ConfigureAwait(false);
             if (manifest.Files[fileName].Bytes > 0 && manifest.Files[fileName].Bytes != info.Length)
             {
                 warnings.Add($"{fileName} 的字节数与清单记录不一致。");
             }
 
+            verifications.Add((fileName, path, manifest.Files[fileName].Sha256));
             filePaths[fileName] = path;
         }
+
+        // 各文件的 SHA-256 校验彼此独立，并行执行以缩短病毒库加载时间。
+        await Task.WhenAll(verifications.Select(item =>
+                VerifyDigestAsync(item.Path, item.FileName, item.Sha256, cancellationToken)))
+            .ConfigureAwait(false);
 
         string? specialPathFile = null;
         if (manifest.Files.TryGetValue(SpecialPathMatcher.FileName, out var specialPathManifest))
@@ -178,7 +185,7 @@ public sealed class SignatureRepository
             ipResult = await BlocklistParser.ParseIpsAsync(stream, cancellationToken).ConfigureAwait(false);
         }
 
-        if (hashResult.Hashes.Count == 0)
+        if (hashResult.Entries.Count == 0)
         {
             throw new InvalidDataException("病毒库不包含有效文件哈希。");
         }
@@ -261,9 +268,9 @@ public sealed class SignatureRepository
 
         if (manifest.Counts is not null)
         {
-            if (manifest.Counts.Hashes != 0 && manifest.Counts.Hashes != hashResult.Hashes.Count)
+            if (manifest.Counts.Hashes != 0 && manifest.Counts.Hashes != hashResult.Entries.Count)
             {
-                warnings.Add($"哈希数量与清单不一致（清单 {manifest.Counts.Hashes}，实际 {hashResult.Hashes.Count}）。");
+                warnings.Add($"哈希数量与清单不一致（清单 {manifest.Counts.Hashes}，实际 {hashResult.Entries.Count}）。");
             }
 
             if (manifest.Counts.Domains != 0 && manifest.Counts.Domains != domainResult.Values.Count)
@@ -296,6 +303,7 @@ public sealed class SignatureRepository
             IsSeed = manifest.IsSeed,
             SourceDirectory = directory,
             Hashes = hashResult.Hashes,
+            Entries = hashResult.Entries,
             Domains = new DomainMatcher(domainResult.Values.Keys),
             IpAddresses = new IpMatcher(ipResult.Values.Keys),
             Yara = yaraRules,
