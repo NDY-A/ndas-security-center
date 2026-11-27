@@ -40,6 +40,7 @@ public sealed class SignatureUpdater
     private const long MaxSignatureFileBytes = SignatureFileLimits.MaxBytes;
     private const long MaxYaraFileBytes = SignatureFileLimits.MaxBytes;
     private const long MaxSpecialPathFileBytes = SignatureFileLimits.MaxBytes;
+    private const long MaxTrustedAdditionsBytes = 8 * 1024 * 1024;
     private const int CopyBufferSize = 128 * 1024;
     private const double MinimumYaraRetentionRatio = 0.5;
     private const string AllowYaraRegressionEnvironmentVariable = "NDAS_ALLOW_YARA_REGRESSION";
@@ -379,6 +380,19 @@ public sealed class SignatureUpdater
             if (!exception.Message.Contains("404", StringComparison.Ordinal))
             {
                 warnings.Add($"{source.Name} 未提供特殊路径清单：{SafeMessage(exception)}");
+            }
+        }
+
+        try
+        {
+            files[TrustedHashIndex.AdditionsFileName] =
+                await FetchAsync(TrustedHashIndex.AdditionsFileName, MaxTrustedAdditionsBytes).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            if (!exception.Message.Contains("404", StringComparison.Ordinal))
+            {
+                warnings.Add($"{source.Name} 未提供云端可信哈希补充：{SafeMessage(exception)}");
             }
         }
 

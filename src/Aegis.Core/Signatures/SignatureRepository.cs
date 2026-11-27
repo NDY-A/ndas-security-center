@@ -229,6 +229,27 @@ public sealed class SignatureRepository
             }
         }
 
+        // 云端可信哈希补充：更新器按批次小文件下发，加载时并入内置大库。
+        var trustedAdditionsPath = Path.Combine(directory, TrustedHashIndex.AdditionsFileName);
+        if (File.Exists(trustedAdditionsPath))
+        {
+            try
+            {
+                var additionLines = await File.ReadAllLinesAsync(trustedAdditionsPath, cancellationToken)
+                    .ConfigureAwait(false);
+                var additions = ParseTrustedAdditions(additionLines);
+                if (additions.Count > 0)
+                {
+                    trustedHashes = trustedHashes.WithAdditions(additions);
+                    warnings.Add($"云端可信哈希补充已生效（{additions.Count} 条）。");
+                }
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                warnings.Add("云端可信哈希补充读取失败：" + SafeMessage(exception));
+            }
+        }
+
         var excludedYaraFiles = includeExtendedRulePack
             ? null
             : ResolveExtendedPackFileNames(Path.Combine(directory, "yara"));
@@ -388,6 +409,55 @@ public sealed class SignatureRepository
             throw new InvalidDataException($"病毒库文件 {fileName} 的 SHA-256 与清单不一致。");
         }
     }
+
+    private static List<byte[]> ParseTrustedAdditions(IEnumerable<string> lines)
+    {
+        var digests = new List<byte[]>();
+        foreach (var raw in lines)
+        {
+            var line = raw.Trim();
+            if (line.Length == 0 || line.StartsWith('#'))
+            {
+                continue;
+            }
+
+            var token = line.Split(' ', '\t')[0];
+            if (token.Length != 64)
+            {
+                continue;
+            }
+
+            var digest = new byte[32];
+            var valid = true;
+            for (var i = 0; i < 32; i++)
+            {
+                var high = HexValue(token[i * 2]);
+                var low = HexValue(token[(i * 2) + 1]);
+                if (high < 0 || low < 0)
+                {
+                    valid = false;
+                    break;
+                }
+
+                digest[i] = (byte)((high << 4) | low);
+            }
+
+            if (valid)
+            {
+                digests.Add(digest);
+            }
+        }
+
+        return digests;
+    }
+
+    private static int HexValue(char character) => character switch
+    {
+        >= '0' and <= '9' => character - '0',
+        >= 'a' and <= 'f' => character - 'a' + 10,
+        >= 'A' and <= 'F' => character - 'A' + 10,
+        _ => -1
+    };
 
     private static string SafeMessage(Exception exception) => exception switch
     {

@@ -9,6 +9,7 @@ namespace Aegis.Core.Signatures;
 public sealed class TrustedHashIndex
 {
     public const string RelativePath = "trusted/trusted-sha256.bin";
+    public const string AdditionsFileName = "trusted-additions.txt";
     private const int DigestSize = 32;
     private const uint Magic = 0x3148544E; // "NTH1" little-endian
     private const uint FormatVersion = 1;
@@ -57,6 +58,67 @@ public sealed class TrustedHashIndex
         }
 
         return count == 0 ? Empty : new TrustedHashIndex(digests);
+    }
+
+    /// <summary>
+    /// Returns a new index with the given additional digests merged in (kept strictly ascending).
+    /// Intended for small cloud-delivered additions; not efficient for bulk merges.
+    /// </summary>
+    public TrustedHashIndex WithAdditions(IReadOnlyList<byte[]> additions)
+    {
+        if (additions.Count == 0)
+        {
+            return this;
+        }
+
+        var buffer = new byte[_digests.Length + (additions.Count * DigestSize)];
+        Buffer.BlockCopy(_digests, 0, buffer, 0, _digests.Length);
+        var size = _digests.Length;
+        foreach (var addition in additions)
+        {
+            if (addition.Length != DigestSize)
+            {
+                continue;
+            }
+
+            var count = size / DigestSize;
+            var low = 0;
+            var high = count - 1;
+            var position = count;
+            var duplicate = false;
+            while (low <= high)
+            {
+                var middle = low + ((high - low) >> 1);
+                var comparison = addition.AsSpan().SequenceCompareTo(buffer.AsSpan(middle * DigestSize, DigestSize));
+                if (comparison == 0)
+                {
+                    duplicate = true;
+                    break;
+                }
+
+                if (comparison < 0)
+                {
+                    position = middle;
+                    high = middle - 1;
+                }
+                else
+                {
+                    low = middle + 1;
+                }
+            }
+
+            if (duplicate)
+            {
+                continue;
+            }
+
+            Buffer.BlockCopy(buffer, position * DigestSize, buffer, (position + 1) * DigestSize,
+                size - (position * DigestSize));
+            addition.CopyTo(buffer, position * DigestSize);
+            size += DigestSize;
+        }
+
+        return new TrustedHashIndex(buffer.AsSpan(0, size).ToArray());
     }
 
     public bool Contains(ReadOnlySpan<byte> digest)
