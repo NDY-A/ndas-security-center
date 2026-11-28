@@ -204,6 +204,10 @@ public static class AgentProcessLauncher
     {
         error = string.Empty;
         Directory.CreateDirectory(options.WorkingDirectory);
+        // The child's TMP/TEMP point at <work>\tmp; the embeddable Python's
+        // onnxruntime/protobuf startup fails silently (no stderr, no handshake)
+        // when that directory does not exist.
+        Directory.CreateDirectory(Path.Combine(options.WorkingDirectory, "tmp"));
         Directory.CreateDirectory(Path.GetDirectoryName(options.LogPath) ?? options.WorkingDirectory);
 
         try
